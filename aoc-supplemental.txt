@@ -1,0 +1,514 @@
+HIMEM=&4000
+NEW
+AUTO
+REM useful stuff
+OSBGET%=&FFD7
+OSFIND%=&FFCE
+OSRDCH%=&FFE0
+OSASCI%=&FFE3
+OSNEWL%=&FFE7
+OSWRCH%=&FFEE
+FOR O%=0 TO 3 STEP 3
+	P%=&70
+	[
+	OPT O%
+	.print_string_pointer
+		EQUW 0 ; 70h
+
+	.filehandle
+		EQUB 0 ; 72h
+
+	.padding
+		EQUB 0 ; 73h
+	]
+	P%=&4000
+	[
+	OPT O%
+	.operand1
+		EQUD 0
+
+	.operand2
+		EQUD 0
+
+	.operand3
+		EQUD 0
+
+	.operand4
+		EQUD 0
+
+	.result
+		EQUD 0
+
+	.close_file
+		LDA #0 ; close file handle
+		LDY filehandle
+		JMP OSFIND%
+
+	.open_file
+		LDA #&40 ; open for reading; X and Y contain pointer to filename (X=LSB, Y=MSB)
+		JSR OSFIND%
+		STA filehandle
+		BEQ read_file_error
+		RTS
+
+	.read_file_error
+		BRK
+		EQUB 255
+		EQUS "Failed to open file"
+		EQUB 0
+
+	.add_32bit
+		CLC
+		LDA operand1
+		ADC operand2
+		STA result
+		LDA operand1 + 1
+		ADC operand2 + 1
+		STA result + 1
+		LDA operand1 + 2
+		ADC operand2 + 2
+		STA result + 2
+		LDA operand1 + 3
+		ADC operand2 + 3
+		STA result + 3
+		RTS
+
+	.add_operand4_result_32bit
+		CLC
+		LDA operand4
+		ADC result
+		STA result
+		LDA operand4 + 1
+		ADC result + 1
+		STA result + 1
+		LDA operand4 + 2
+		ADC result + 2
+		STA result + 2
+		LDA operand4 + 3
+		ADC result + 3
+		STA result + 3
+		RTS
+
+	.sub_32bit
+		SEC
+		LDA operand1
+		SBC operand2
+		STA result
+		LDA operand1 + 1
+		SBC operand2 + 1
+		STA result + 1
+		LDA operand1 + 2
+		SBC operand2 + 2
+		STA result + 2
+		LDA operand1 + 3
+		SBC operand2 + 3
+		STA result + 3
+		RTS
+
+	.asl_operand1_32bit
+		ASL operand1
+		ROL operand1 + 1
+		ROL operand1 + 2
+		ROL operand1 + 3
+		RTS
+
+	.asl_operand4_32bit
+		ASL operand4
+		ROL operand4 + 1
+		ROL operand4 + 2
+		ROL operand4 + 3
+		RTS
+
+	.lsr_operand3_32bit
+		LSR operand3 + 3
+		ROR operand3 + 2
+		ROR operand3 + 1
+		ROR operand3
+		RTS
+
+	.copy_operand1_to_operand2
+		LDA operand1
+		STA operand2
+		LDA operand1 + 1
+		STA operand2 + 1
+		LDA operand1 + 2
+		STA operand2 + 2
+		LDA operand1 + 3
+		STA operand2 + 3
+		RTS
+
+	.copy_operand1_to_operand4
+		LDA operand1
+		STA operand4
+		LDA operand1 + 1
+		STA operand4 + 1
+		LDA operand1 + 2
+		STA operand4 + 2
+		LDA operand1 + 3
+		STA operand4 + 3
+		RTS
+
+	.copy_operand2_to_operand3
+		LDA operand2
+		STA operand3
+		LDA operand2 + 1
+		STA operand3 + 1
+		LDA operand2 + 2
+		STA operand3 + 2
+		LDA operand2 + 3
+		STA operand3 + 3
+		RTS
+
+	.copy_result_to_operand1
+		LDA result
+		STA operand1
+		LDA result + 1
+		STA operand1 + 1
+		LDA result + 2
+		STA operand1 + 2
+		LDA result + 3
+		STA operand1 + 3
+		RTS
+
+	.multiply_by_ten_32bit
+		JSR asl_operand1_32bit
+		JSR copy_operand1_to_operand2
+		JSR asl_operand1_32bit
+		JSR asl_operand1_32bit
+		JMP add_32bit
+
+	.multiply_32bit
+		LDY #32
+		LDA #0
+		STA result
+		STA result + 1
+		STA result + 2
+		STA result + 3
+		JSR copy_operand1_to_operand4
+		JSR copy_operand2_to_operand3
+	.multiply_32bit_loop
+		JSR lsr_operand3_32bit
+		BCC multiply_32bit_loop_end
+		JSR add_operand4_result_32bit
+	.multiply_32bit_loop_end
+		JSR asl_operand4_32bit
+		DEY
+		BNE multiply_32bit_loop
+		RTS
+
+	.print_hex_result_32bit
+		LDA result + 3
+		JSR print_hex_8bit
+		LDA result + 2
+		JSR print_hex_8bit
+		LDA result + 1
+		JSR print_hex_8bit
+		LDA result
+		JMP print_hex_8bit
+
+	.print_hex_16bit
+		TYA
+		JSR print_hex_8bit
+		TXA
+
+	.print_hex_8bit
+		PHA
+		LSR A
+		LSR A
+		LSR A
+		LSR A
+		JSR print_hex_digit
+		PLA
+		AND #15
+
+	.print_hex_digit
+		ORA #48
+		CMP #58
+		BCC print_this_char
+		ADC #6
+
+	.print_this_char
+		JMP OSWRCH%
+
+	.print_string
+		PLA
+		STA print_string_pointer
+		PLA
+		STA print_string_pointer + 1
+		LDY #1
+	.print_string_loop
+		LDA (print_string_pointer), Y
+		BEQ print_string_return
+		JSR OSWRCH%
+		INY
+		BNE print_string_loop
+	.print_string_return
+		CLC
+		TYA
+		ADC print_string_pointer
+		STA print_string_pointer
+		LDA #0
+		ADC print_string_pointer + 1
+		PHA
+		LDA print_string_pointer
+		PHA
+		RTS
+	]
+	P%=&80
+	[
+	OPT O%
+	.head_pointer
+		EQUW 0
+	.ints_end
+		EQUW 0
+	.how_many_ints_to_sum
+		EQUB 0
+	]
+	P%=&5000
+	[
+	OPT O%
+	.head
+		EQUD 0
+	.result
+		EQUD 0
+	.required_sum
+		EQUD 0
+	.filename
+		EQUS "T.DAY01"
+		EQUB 13
+	.input_buffer
+		EQUD 0
+		EQUD 0
+		EQUD 0
+		EQUD 0
+	
+	.close_file
+		LDA #0 ; close file handle
+		LDY filehandle
+		JMP OSFIND%
+	
+	.read_file
+		LDA #&40 ; open for reading
+		LDX #filename MOD 256
+		LDY #filename DIV 256
+		JSR OSFIND%
+		STA filehandle
+		BEQ read_ints
+		BRK
+		EQUB 255
+		EQUS "Failed to open file"
+		EQUB 0
+	
+	.read_ints
+		LDX #0
+
+	.read_int_loop
+		LDY filehandle
+		JSR OSBGET%
+		BCS close_file ; reached EOF
+		CMP #13
+		BEQ read_int_skip
+		CMP #10
+		BEQ parse_int
+		STA input_buffer, X
+	.read_int_skip
+		INX
+		BNE read_int_loop
+	
+	.parse_int
+		LDA #0
+		STA input_buffer, X
+		STA operand1
+		STA operand1 + 1
+		TAX
+		LDA input_buffer, X
+		BEQ read_ints
+
+	.parse_int_loop
+		AND #15
+		PHA
+		JSR multiply_by_ten_32bit
+		JSR copy_result_to_operand1
+		PLA
+		STA operand2
+		LDA #0
+		STA operand2 + 1
+		STA operand2 + 2
+		STA operand2 + 3
+		JSR sum_32bit
+		JSR copy_result_to_operand1
+		INX
+		LDA input_buffer, X
+		BNE parse_int_loop
+	
+	.store_int
+		TAY
+		LDA operand1
+		STA (ints_end), Y
+		LDA operand1 + 1
+		INY
+		STA (ints_end), Y
+		INY
+		CLC
+		TYA
+		ADC ints_end
+		STA ints_end
+		BCC read_ints
+		LDA #0
+		ADC ints_end + 1
+		STA ints_end + 1
+		BPL read_ints
+		JMP close_file ; if we get here, we are out of RAM
+	
+	.solve
+		LDA how_many_ints_to_sum
+		TAX
+		BEQ solve_return_zero
+		LDA head_pointer
+		CMP ints_end
+		BNE solve_skip_1
+		LDA head_pointer + 1
+		CMP ints_end + 1
+		BNE solve_skip_1
+	
+	.solve_return_zero
+		LDA #0
+		STA result
+		STA result + 1
+		STA result + 2
+		STA result + 3
+		RTS
+	
+	.solve_skip_1
+		LDY #0
+		LDA (head_pointer), Y
+		STA head
+		LDA (head_pointer + 1), Y
+		STA head + 1
+		CLC
+		LDA head_pointer ; tail
+		ADC #2
+		STA head_pointer
+		LDA head_pointer + 1
+		ADC #0
+		STA head_pointer + 1
+		CPX #1
+		BNE solve_more_than_one
+	
+		LDA head
+		STA result
+		CMP required_sum
+		BNE solve
+		LDA head + 1
+		STA result + 1
+		CMP required_sum + 1
+		BNE solve
+		LDA #0
+		STA result + 2
+		STA result + 3
+		RTS
+	
+	.solve_more_than_one
+		LDA how_many_ints_to_sum
+		PHA
+		LDA required_sum
+		PHA
+		LDA required_sum + 1
+		PHA
+		LDA head
+		PHA
+		LDA head + 1
+		PHA
+		LDA head_pointer
+		PHA
+		LDA head_pointer + 1
+		PHA
+		LDA result
+		PHA
+		LDA result + 1
+		PHA
+		LDA result + 2
+		PHA
+		LDA result + 3
+		PHA
+
+		DEC how_many_ints_to_sum
+		JSR solve
+	
+		LDA result
+		STA operand1
+		LDA result + 1
+		STA operand1 + 1
+		LDA result + 2
+		STA operand1 + 2
+		LDA result + 3
+		STA operand1 + 3
+
+		PLA
+		STA result + 3
+		PLA
+		STA result + 2
+		PLA
+		STA result + 1
+		PLA
+		STA result
+		PLA
+		STA head_pointer + 1
+		PLA
+		STA head_pointer
+		PLA
+		STA head + 1
+		PLA
+		STA head
+		PLA
+		STA required_sum + 1
+		PLA
+		STA required_sum
+		PLA
+		STA how_many_ints_to_sum
+	
+		LDA operand1 ; is result zero?
+		ORA operand1 + 1
+		ORA operand1 + 2
+		ORA operand1 + 3
+		BEQ solve
+	
+	.multiply_head_by_result
+		LDA head
+		STA operand2
+		LDA head + 1
+		STA operand2 + 1
+		LDA head + 2
+		STA operand2 + 2
+		LDA head + 3
+		STA operand2 + 3
+		JSR multiply_32bit
+		RTS
+	
+	.start
+		LDA #ints MOD 256
+		STA head_pointer
+		STA ints_end
+		LDA #ints DIV 256
+		STA head_pointer + 1
+		STA ints_end + 1
+		
+		JSR read_file
+		
+		LDA #228
+		STA required_sum
+		LDA #7
+		STA required_sum + 1
+		LDA #0
+		STA required_sum + 2
+		STA required_sum + 3 ; required sum is 2020 (7E4h)
+		LDA #2
+		STA how_many_ints_to_sum
+	
+	.end
+		RTS
+
+	.ints
+		EQUW 0
+	]
+NEXT

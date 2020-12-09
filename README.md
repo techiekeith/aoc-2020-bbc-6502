@@ -22,7 +22,7 @@ Tools used:
 
 ### From source
 
-* Load the file containing the assembly source code (e.g. `aoc-day1.bbc`) into a text editor
+* Load the file containing the assembly source code (e.g. `aoc-day1.6502`) into a text editor
 * Copy the contents to the clipboard
 * In BeebEm menu bar, select `Edit` **>** `Paste`
 * Press the **Esc** key

@@ -40,10 +40,6 @@ start=&6100
 ptr=&8A
 
 FOR N%=0 TO 2 STEP 2
-	P%=&70
-	[
-		OPT N%
-	]
 	P%=start
 	[
 		OPT N%
@@ -237,7 +233,6 @@ NEXT
 END
 
 DEF PROCtest
-PRINT "No tests specified; please write some!"
 CALL test
 ENDPROC
 

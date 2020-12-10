@@ -1,12 +1,14 @@
 HIMEM=&6000
 NEW
 AUTO
-OSBGET=&FFD7
 OSFIND=&FFCE
+OSBGET=&FFD7
+OSFILE=&FFDD
 OSRDCH=&FFE0
 OSASCI=&FFE3
 OSNEWL=&FFE7
 OSWRCH=&FFEE
+start=&6000
 FOR O%=0 TO 2 STEP 2
 	P%=&70
 	[
@@ -29,7 +31,7 @@ FOR O%=0 TO 2 STEP 2
 	.how_many_ints_to_sum
 		EQUB 0
 	]
-	P%=&6000
+	P%=start
 	[
 	OPT O%
 	.operand1
@@ -615,7 +617,7 @@ FOR O%=0 TO 2 STEP 2
 		STA operand2
 		JMP multiply_32bit
 	
-	.start
+	.run
 		LDA #ints MOD 256
 		STA head_pointer
 		STA ints_end
@@ -642,7 +644,6 @@ FOR O%=0 TO 2 STEP 2
 		LDA #2
 		STA how_many_ints_to_sum
 		JSR solve
-		JSR OSNEWL
 		JSR print_string
 		EQUS "Part 1 result: "
 		BRK
@@ -657,18 +658,32 @@ FOR O%=0 TO 2 STEP 2
 		LDA #3
 		STA how_many_ints_to_sum
 		JSR solve
-		JSR OSNEWL
 		JSR print_string
 		EQUS "Part 2 result: "
 		BRK
 		JSR print_decimal_result_32bit
-		JSR OSNEWL
-	
-	.end
-		RTS
+		JMP OSNEWL
 
 	.ints
 		EQUW 0
+	.end
 	]
 NEXT
-CALL start
+END
+
+DEF PROCtest
+PRINT "No tests specified; please write some!"
+ENDPROC
+
+DEF PROCsave
+A%=0
+B%=&41C0000
+C%=start
+D%=run
+E%=start
+F%=end
+X%=10
+Y%=4
+$&41C="DAY01"
+CALL OSFILE
+ENDPROC

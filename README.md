@@ -17,8 +17,7 @@ Tools used:
 
 ### From disk image
 
-* Enter `CHAIN "DAY`*NN*`"` (where *NN* is between 01 and 25) to assemble the program and run against the test data
-* Enter `$filename="A.DAY`*NN*`":CALL start` to run the assembled program against the real data
+* Enter `*DAYnn`
 
 ### From source
 
@@ -26,15 +25,17 @@ Tools used:
 * Copy the contents to the clipboard
 * In BeebEm menu bar, select `Edit` **>** `Paste`
 * Press the **Esc** key
-* Enter `RUN` to assemble the program and run against the test data
-* Enter `$filename="A.DAY`*NN*`":CALL start` to run the assembled program against the real data
+* Enter `RUN` to assemble the program
+* Enter `PROCtest` to run the program against the test data
+* Enter `CALL run` to run the program against the real data
+* Enter `PROCsave` to save the program to the disk image
 
 ## Data files associated with these programs
 
 The text files needed to run these programs are available from [my main Advent of Code 2020 GitHub repository](https://github.com/techiekeith/advent-of-code-2020). File mappings are as follows:
 
-* `data/day/`*N*`/input.txt` **->** `A.DAY`*NN*
-* `data/day/`*N*`/test.txt` **->** `T.DAY`*NN*
+* `data/day/n/input.txt` **->** `A.DAYnn`
+* `data/day/n/test.txt` **->** `T.DAYnn`
 
 ## Goals
 

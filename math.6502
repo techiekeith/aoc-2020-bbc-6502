@@ -1,0 +1,480 @@
+HIMEM=&7000
+NEW
+AUTO
+OSBGET%=&FFD7
+OSFIND%=&FFCE
+OSRDCH%=&FFE0
+OSASCI%=&FFE3
+OSNEWL%=&FFE7
+OSWRCH%=&FFEE
+START%=&7000
+FOR N%=0 TO 2 STEP 2
+	P%=&70
+    [
+	OPT N%
+    .operand_offset
+    .dividend
+    .operand1
+        EQUD 0 ; 70h (0)
+        EQUD 0 ; 74h
+    .divisor
+    .operand2
+        EQUD 0 ; 78h (1)
+        EQUD 0 ; 7Ch
+    .result
+    .quotient
+        EQUD 0 ; 80h (2)
+        EQUD 0 ; 84h
+    .remainder
+        EQUD 0 ; 88h (3)
+        EQUD 0 ; 8Ch
+    .temp_number
+        EQUD 0 ; 90h (4)
+        EQUD 0 ; 94h
+    .src
+        EQUW 0 ; 98h
+    .dest
+        EQUW 0 ; 9Ah
+    .counter
+        EQUB 0 ; 9Ch
+    .counter2
+        EQUB 0 ; 9Dh
+    .nbytes
+        EQUB 0 ; 9Eh
+    ]
+    P%=START%
+    [
+    OPT N%
+    .print_buffer
+        EQUD 0
+        EQUD 0
+        EQUD 0
+        EQUD 0
+        EQUD 0
+        EQUB 0
+
+    .decimal_digit_lookup
+        EQUB 3 ; 255
+        EQUB 5 ; 65535
+        EQUB 8 ; 16777215
+        EQUB 10 ; 4294967295
+        EQUB 13 ; 1099511627775
+        EQUB 15 ; 281474976710655
+        EQUB 17 ; 72057594037927936
+        EQUB 20 ; 18446744073709551615
+
+    .set_nbytes
+        CMP #0
+        BEQ invalid_nbytes
+        CMP #8
+        BCS invalid_nbytes
+        STA nbytes
+        RTS
+    .invalid_nbytes
+        BRK
+        EQUB 255
+        EQUS "Invalid nbytes; value must be between 1 and 8"
+        BRK
+
+	.print_string
+		PLA
+		STA src
+		PLA
+		STA src + 1
+		LDY #1
+	.print_string_loop
+		LDA (src), Y
+		BEQ print_string_return
+		JSR OSWRCH%
+		INY
+		BNE print_string_loop
+	.print_string_return
+		CLC
+		TYA
+		ADC src
+		STA src
+		LDA #0
+		ADC src + 1
+		PHA
+		LDA src
+		PHA
+		RTS
+
+	.print_hex_8bit
+		PHA
+		LSR A
+		LSR A
+		LSR A
+		LSR A
+		JSR print_digit
+		PLA
+		AND #15
+
+	.print_digit
+		ORA #48
+		CMP #58
+		BCC print_this_char
+		ADC #6
+
+	.print_this_char
+		JMP OSWRCH%
+
+    .store_operand
+        STX src
+        STY src + 1
+        ASL A
+        ASL A
+        ASL A
+        ADC #operand_offset MOD 256
+        STA dest
+        LDA #0
+        STA dest + 1
+        TAY
+        BEQ copy_src_to_dest
+
+    .load_operand
+        STX dest
+        STY dest + 1
+        ASL A
+        ASL A
+        ASL A
+        ADC #operand_offset MOD 256
+        STA src
+        LDA #0
+        STA src + 1
+        TAY
+    
+    .copy_src_to_dest
+        LDA (src), Y
+        STA (dest), Y
+        INY
+        CPY nbytes
+        BNE copy_src_to_dest
+        RTS
+
+    .add
+        LDY #0
+        CLC
+        PHP
+    .add_loop
+        PLP
+		LDA operand1, Y
+		ADC operand2, Y
+		STA result, Y
+        PHP
+        INY
+        CPY nbytes
+        BNE add_loop
+        PLP
+        RTS
+
+    .subtract
+        LDY #0
+        SEC
+        PHP
+    .subtract_loop
+        PLP
+		LDA operand1, Y
+		SBC operand2, Y
+		STA result, Y
+        PHP
+        INY
+        CPY nbytes
+        BNE subtract_loop
+        PLP
+        RTS
+
+    .lsr_remainder
+        LDX nbytes
+        DEX
+        LSR remainder, X
+        PHP
+        CPX #0
+        BEQ lsr_remainder_end
+    .lsr_remainder_loop
+        PLP
+        DEX
+        ROR remainder, X
+        PHP
+        CPX #0
+        BNE lsr_remainder_loop
+    .lsr_remainder_end
+        PLP
+        RTS
+
+    .asl_dividend
+        ASL dividend
+        PHP
+        LDX #1
+        CPX nbytes
+        BEQ asl_dividend_end
+    .asl_dividend_loop
+        PLP
+        ROL dividend, X
+        PHP
+        INX
+        CPX nbytes
+        BNE asl_dividend_loop
+    .asl_dividend_end
+        PLP
+        RTS
+
+    .asl_temp_number
+        ASL temp_number
+        PHP
+        LDX #1
+        CPX nbytes
+        BEQ asl_temp_number_end
+    .asl_temp_number_loop
+        PLP
+        ROL temp_number, X
+        PHP
+        INX
+        CPX nbytes
+        BNE asl_temp_number_loop
+    .asl_temp_number_end
+        PLP
+        RTS
+
+    .rol_quotient
+        PHP
+        LDX #0
+    .rol_quotient_loop
+        PLP
+        ROL quotient, X
+        PHP
+        INX
+        CPX nbytes
+        BNE rol_quotient_loop
+        PLP
+        RTS
+
+    .rol_remainder
+        PHP
+        LDX #0
+    .rol_remainder_loop
+        PLP
+        ROL remainder, X
+        PHP
+        INX
+        CPX nbytes
+        BNE rol_remainder_loop
+        PLP
+        RTS
+
+    .zero_operand
+        ASL A
+        ASL A
+        ASL A
+        ADC #operand_offset MOD 256
+        STA dest
+        LDA #0
+        STA dest + 1
+		LDA #0
+		TAY
+    .zero_operand_loop
+		STA (dest), Y
+        INY
+        CPY nbytes
+        BNE zero_operand_loop
+        RTS
+
+	.multiply
+        LDA #0 ; operand1
+        LDX #temp_number MOD 256
+        LDY #temp_number DIV 256
+        JSR load_operand ; operand1 -> temp_number
+        LDA #1 ; operand2
+        LDX #remainder MOD 256
+        LDY #remainder DIV 256
+        JSR load_operand ; operand2 -> remainder
+        LDA #2 ; result
+        JSR zero_operand ; result <- 0
+        LDA nbytes
+        ASL A
+        ASL A
+        ASL A
+        STA counter ; number of bits to rotate
+	.multiply_loop
+        LDA #1 ; operand2
+        LDX #result MOD 256
+        LDY #result DIV 256
+        JSR store_operand ; operand2 <- result
+        JSR lsr_remainder
+		BCC multiply_loop_end
+        LDA #0 ; operand1
+        LDX #temp_number MOD 256
+        LDY #temp_number DIV 256
+        JSR store_operand ; operand1 <- temp_number
+		JSR add
+	.multiply_loop_end
+        JSR asl_temp_number
+        DEC counter
+		BNE multiply_loop
+		RTS
+
+	.divide
+        LDA #2 ; quotient
+        JSR zero_operand ; quotient <- 0
+        LDA #3 ; remainder
+        JSR zero_operand ; remainder <- 0
+        LDA nbytes
+        ASL A
+        ASL A
+        ASL A
+        STA counter ; number of bits to rotate
+	.divide_loop
+        JSR asl_dividend
+		JSR rol_remainder
+        LDX #0
+		SEC
+        PHP
+    .divide_subtract_loop
+		LDA remainder, X
+        PLP
+		SBC divisor, X
+        PHP
+		STA temp_number, X
+        INX
+        CPX nbytes
+        BNE divide_subtract_loop
+        PLP
+        DEX
+        LDA temp_number, X
+        BMI divide_next
+        LDA #3 ; remainder
+        LDX #temp_number MOD 256
+        LDY #temp_number DIV 256
+        JSR store_operand ; remainder <- temp_number
+		SEC
+	.divide_next
+		JSR rol_quotient
+        DEC counter
+		BNE divide_loop
+		RTS
+    
+    .print_hex
+        STX src
+        STY src + 1
+        LDY nbytes
+    .print_hex_loop
+        DEY
+        LDA (src), Y
+        JSR print_hex_8bit
+        CPY #0
+        BNE print_hex_loop
+        RTS
+
+    .print_decimal
+        STX src
+        STY src + 1
+        LDX #dividend MOD 256
+        LDY #dividend DIV 256
+        STX dest
+        STY dest + 1
+        JSR copy_src_to_dest
+        LDA #1 ; divisor
+        JSR zero_operand
+        LDA #10
+        STA divisor
+        LDX nbytes
+        DEX
+        LDA decimal_digit_lookup, X
+        STA counter2
+        TAX
+        LDA #0
+        STA print_buffer, X
+        DEX
+        LDA #32
+    .init_decimal_buffer_loop
+        STA print_buffer, X
+        DEX
+        BPL init_decimal_buffer_loop
+        LDA nbytes
+    .fill_decimal_buffer_loop
+        JSR divide
+        LDA #0 ; dividend
+        LDX #result MOD 256
+        LDY #result DIV 256
+        JSR store_operand ; dividend <- result
+        LDA remainder
+        ORA #48
+        DEC counter2
+        LDX counter2
+        STA print_buffer, X
+        LDA #0
+        TAY
+    .test_quotient
+        ORA quotient, Y
+        INY
+        CPY nbytes
+        BNE test_quotient
+        CMP #0
+        BEQ output_decimal
+        CPX #0
+        BNE fill_decimal_buffer_loop
+    .output_decimal
+        LDX #0
+    .output_decimal_loop
+        LDA print_buffer, X
+        BEQ output_decimal_end
+        CMP #32
+        BEQ output_decimal_skip
+        JSR OSWRCH%
+    .output_decimal_skip
+        INX
+        BNE output_decimal_loop
+    .output_decimal_end
+        RTS
+    ]
+NEXT
+?nbytes = 8
+
+!operand1 = 4000000
+!(operand1 + 4) = 0
+!operand2 = 2000000
+!(operand2 + 4) = 0
+PRINT STR$(!operand1); " x ";STR$(!operand2);" = ";
+CALL multiply
+X%=result MOD 256
+Y%=result DIV 256
+CALL print_decimal
+PRINT
+
+!operand1 = 4000000
+!(operand1 + 4) = 0
+!operand2 = 2000000
+!(operand2 + 4) = 0
+PRINT STR$(!operand1); " ~ ";STR$(!operand2);" = ";
+CALL divide
+X%=result MOD 256
+Y%=result DIV 256
+CALL print_decimal
+PRINT
+
+!operand1 = &A5288000
+!(operand1 + 4) = &746
+X%=operand1 MOD 256
+Y%=operand1 DIV 256
+CALL print_decimal
+
+!operand1 = &A5288000
+!(operand1 + 4) = &746
+!operand2 = 2000000
+!(operand2 + 4) = 0
+PRINT " ~ ";STR$(!operand2);" = ";
+CALL divide
+X%=result MOD 256
+Y%=result DIV 256
+CALL print_decimal
+PRINT
+
+?nbytes=4
+!operand1 = 10
+!operand2 = 2
+PRINT STR$(!operand1);" ~ ";STR$(!operand2);" = ";
+CALL divide
+X%=result MOD 256
+Y%=result DIV 256
+CALL print_decimal
+PRINT

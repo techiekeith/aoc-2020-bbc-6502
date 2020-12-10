@@ -1,40 +1,255 @@
 HIMEM=&6000
 NEW
 AUTO
-OSFIND%=&FFCE
-OSBGET%=&FFD7
-OSRDCH%=&FFE0
-OSASCI%=&FFE3
-OSNEWL%=&FFE7
-OSWRCH%=&FFEE
+REM Operating system variables
+
+OSFIND=&FFCE
+OSGBPB=&FFD1
+OSBPUT=&FFD4
+OSBGET=&FFD7
+OSARGS=&FFDA
+OSFILE=&FFDD
+OSRDCH=&FFE0
+OSASCI=&FFE3
+OSNEWL=&FFE7
+OSWRCH=&FFEE
+
+REM Useful math library variables
+
+math_library_start=&7800
+set_integer_width=math_library_start
+add=math_library_start + 3
+subtract=math_library_start + 6
+multiply=math_library_start + 9
+divide=math_library_start + 12
+print_string=math_library_start + 15
+print_decimal=math_library_start + 18
+print_hex=math_library_start + 21
+print_hex_16bit=math_library_start + 24
+print_hex_8bit=math_library_start + 27
+operand1=math_library_start + &20
+dividend=operand1
+operand2=math_library_start + &28
+divisor=operand2
+result=math_library_start + &30
+quotient=result
+remainder=math_library_start + &38
+
+buffer=&6000
+start=&6100
+ptr=&8A
+
 FOR N%=0 TO 2 STEP 2
 	P%=&70
 	[
 		OPT N%
 	]
-	P%=&6000
+	P%=start
 	[
 		OPT N%
-		.filename
-			EQUS "T.DAY02" ; "A.DAY02"
+		.math_filename
+			EQUS "L.MATH"
 			EQUB 13
+		.test_filename
+			EQUS "T.DAY02"
+			EQUB 13
+		.real_filename
+			EQUS "A.DAY02"
+			EQUB 13
+		.math_osfile_block
+			EQUW math_filename
+			EQUD math_library_start
+			EQUD 0
+			EQUD 0
+			EQUD 0
 		.file_handle
-			BRK
-		.line_buffer
-	]
-	[
-		OPT N%
-		.open_file
-			LDX #filename MOD 256
-			LDY #filename DIV 256
-			LDA #&40 ; open for reading
-			JSR OSFIND%
-			STA file_handle ; file handle
-			RTS
+			EQUB 0
+		.parse_int_results
+		.first_number
+			EQUB 0
+		.second_number
+			EQUB 0
+		.matching_char
+			EQUB 0
+		.part1_match
+			EQUB 0
+		.part2_match
+			EQUB 0
+		.part1_result
+			EQUW 0
+		.part2_result
+			EQUW 0
+
 		.close_file
 			LDA #0
 			LDY file_handle
-			JMP OSFIND%
+			JSR OSFIND
+			JSR print_string
+			EQUS "Part 1: "
+			EQUB 0
+			LDX #part1_result MOD 256
+			LDY #part1_result DIV 256
+			JSR print_decimal
+			JSR print_string
+			EQUB 13
+			EQUB 10
+			EQUS "Part 2: "
+			EQUB 0
+			LDX #part2_result MOD 256
+			LDY #part2_result DIV 256
+			JSR print_decimal
+			JMP OSNEWL
+		
+		.test
+			LDX #test_filename MOD 256
+			LDY #test_filename DIV 256
+			JMP open_file
+		.run
+			LDX #real_filename MOD 256
+			LDY #real_filename DIV 256
+		.open_file
+			LDA #&40 ; open for reading
+			JSR OSFIND
+			STA file_handle ; file handle
+			TAY
+
+		.load_math_library
+			LDA #255
+			LDX #math_osfile_block MOD 256
+			LDY #math_osfile_block DIV 256
+			JSR OSFILE
+			LDA #2
+			JSR set_integer_width
+
+		.init_results
+			LDX #0
+			STX part1_result
+			STX part1_result + 1
+			STX part2_result
+			STX part2_result + 1
+
+		.read_line
+			LDX #0
+		.read_line_loop
+			LDY file_handle
+			JSR OSBGET
+			BCS close_file
+			CMP #10
+			BEQ parse_line
+			CMP #13
+			BNE skip_zero
+			LDA #0
+		.skip_zero
+			STA buffer, X
+			INX
+			BNE read_line_loop
+		.line_too_long
+			BRK
+			EQUB 255
+			EQUS "Line too long"
+			BRK
+		.parse_line
+			LDX #0 ; buffer pointer
+			LDY #0 ; integer result
+			JSR parse_int
+			INX ; "-"
+			LDY #1 ; integer result
+			JSR parse_int
+			INX ; " "
+			LDA buffer, X
+			STA matching_char
+			INX ; "c"
+			INX ; colon
+			INX ; " "
+			DEX
+			STX ptr
+			LDA #buffer DIV 256
+			STA ptr + 1
+			LDY #0
+			STY part1_match
+			STY part2_match
+			INY
+		.test_password_loop
+			LDA (ptr), Y
+			BEQ end_of_line
+			CMP matching_char
+			BNE next_char
+			INC part1_match
+		.skip_part1_test
+			CPY first_number
+			BEQ inc_part2_match
+			CPY second_number
+			BNE next_char
+		.inc_part2_match
+			INC part2_match
+		.next_char
+			INY
+			BNE test_password_loop
+		.end_of_line
+			LDA part1_match
+			CMP first_number
+			BCC skip_part1_result_update
+			CMP second_number
+			BEQ inc_part1_result
+			BCS skip_part1_result_update
+		.inc_part1_result
+			INC part1_result
+			BNE skip_part1_result_update
+			INC part1_result + 1
+		.skip_part1_result_update
+			LDA part2_match
+			CMP #1
+			BNE skip_part2_result_update
+			INC part2_result
+			BNE skip_part2_result_update
+			INC part2_result + 1
+		.skip_part2_result_update
+			JMP read_line
+
+		.parse_int
+			LDA #0
+			STA parse_int_results, Y
+		.parse_int_loop
+			LDA buffer, X
+			CMP #48
+			BCC parse_int_done
+			CMP #58
+			BCS parse_int_done
+			PHA
+			LDA parse_int_results, Y
+			ASL A
+			STA parse_int_results, Y
+			ASL A
+			ASL A
+			ADC parse_int_results, Y
+			STA parse_int_results, Y
+			PLA
+			AND #15
+			ADC parse_int_results, Y
+			STA parse_int_results, Y
+			INX
+			BNE parse_int_loop
+		.parse_int_done
+			RTS
+		.end
 	]
 NEXT
-CALL start
+END
+
+DEF PROCtest
+PRINT "No tests specified; please write some!"
+CALL test
+ENDPROC
+
+DEF PROCsave
+A%=0
+B%=&41C0000
+C%=start
+D%=run
+E%=start
+F%=end
+X%=10
+Y%=4
+$&41C="DAY02"
+CALL OSFILE
+ENDPROC

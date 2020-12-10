@@ -1,50 +1,69 @@
 HIMEM=&7000
 NEW
 AUTO
-OSBGET%=&FFD7
-OSFIND%=&FFCE
-OSRDCH%=&FFE0
-OSASCI%=&FFE3
-OSNEWL%=&FFE7
-OSWRCH%=&FFEE
-START%=&7000
+OSFIND=&FFCE
+OSGBPB=&FFD1
+OSBPUT=&FFD4
+OSBGET=&FFD7
+OSARGS=&FFDA
+OSFILE=&FFDD
+OSRDCH=&FFE0
+OSASCI=&FFE3
+OSNEWL=&FFE7
+OSWRCH=&FFEE
+start=&7800
+src=&8C
+dest=&8E
 FOR N%=0 TO 2 STEP 2
-	P%=&70
+    P%=start
     [
-	OPT N%
+    OPT N%
+    .set_integer_width_call
+        JMP set_integer_width
+    .add_call
+        JMP add
+    .subtract_call
+        JMP subtract
+    .multiply_call
+        JMP multiply
+    .divide_call
+        JMP divide
+    .print_string_call
+        JMP print_string
+    .print_decimal_call
+        JMP print_decimal
+    .print_hex_call
+        JMP print_hex
+    .print_hex_16bit_call
+        JMP print_hex_16bit
+    .print_hex_8bit_call
+        JMP print_hex_8bit
+    .counter
+        EQUB 0
+    .counter2
+        EQUB 0
     .operand_offset
     .dividend
     .operand1
-        EQUD 0 ; 70h (0)
-        EQUD 0 ; 74h
+        EQUD 0
+        EQUD 0
     .divisor
     .operand2
-        EQUD 0 ; 78h (1)
-        EQUD 0 ; 7Ch
+        EQUD 0
+        EQUD 0
     .result
     .quotient
-        EQUD 0 ; 80h (2)
-        EQUD 0 ; 84h
+        EQUD 0
+        EQUD 0
     .remainder
-        EQUD 0 ; 88h (3)
-        EQUD 0 ; 8Ch
+        EQUD 0
+        EQUD 0
     .temp_number
-        EQUD 0 ; 90h (4)
-        EQUD 0 ; 94h
-    .src
-        EQUW 0 ; 98h
-    .dest
-        EQUW 0 ; 9Ah
-    .counter
-        EQUB 0 ; 9Ch
-    .counter2
-        EQUB 0 ; 9Dh
-    .nbytes
-        EQUB 0 ; 9Eh
-    ]
-    P%=START%
-    [
-    OPT N%
+        EQUD 0
+        EQUD 0
+    .integer_width
+        EQUB 8
+
     .print_buffer
         EQUD 0
         EQUD 0
@@ -63,17 +82,17 @@ FOR N%=0 TO 2 STEP 2
         EQUB 17 ; 72057594037927936
         EQUB 20 ; 18446744073709551615
 
-    .set_nbytes
+    .set_integer_width
         CMP #0
-        BEQ invalid_nbytes
-        CMP #8
-        BCS invalid_nbytes
-        STA nbytes
+        BEQ invalid_integer_width
+        CMP #9
+        BCS invalid_integer_width
+        STA integer_width
         RTS
-    .invalid_nbytes
+    .invalid_integer_width
         BRK
         EQUB 255
-        EQUS "Invalid nbytes; value must be between 1 and 8"
+        EQUS "Invalid integer_width; value must be between 1 and 8"
         BRK
 
 	.print_string
@@ -85,7 +104,7 @@ FOR N%=0 TO 2 STEP 2
 	.print_string_loop
 		LDA (src), Y
 		BEQ print_string_return
-		JSR OSWRCH%
+		JSR OSWRCH
 		INY
 		BNE print_string_loop
 	.print_string_return
@@ -117,7 +136,7 @@ FOR N%=0 TO 2 STEP 2
 		ADC #6
 
 	.print_this_char
-		JMP OSWRCH%
+		JMP OSWRCH
 
     .store_operand
         STX src
@@ -127,10 +146,9 @@ FOR N%=0 TO 2 STEP 2
         ASL A
         ADC #operand_offset MOD 256
         STA dest
-        LDA #0
+        LDA #operand_offset DIV 256
         STA dest + 1
-        TAY
-        BEQ copy_src_to_dest
+        JMP copy_src_to_dest
 
     .load_operand
         STX dest
@@ -140,16 +158,17 @@ FOR N%=0 TO 2 STEP 2
         ASL A
         ADC #operand_offset MOD 256
         STA src
-        LDA #0
+        LDA #operand_offset DIV 256
         STA src + 1
-        TAY
     
     .copy_src_to_dest
+        LDY #0
+    .copy_src_to_dest_loop
         LDA (src), Y
         STA (dest), Y
         INY
-        CPY nbytes
-        BNE copy_src_to_dest
+        CPY integer_width
+        BNE copy_src_to_dest_loop
         RTS
 
     .add
@@ -163,7 +182,7 @@ FOR N%=0 TO 2 STEP 2
 		STA result, Y
         PHP
         INY
-        CPY nbytes
+        CPY integer_width
         BNE add_loop
         PLP
         RTS
@@ -179,13 +198,13 @@ FOR N%=0 TO 2 STEP 2
 		STA result, Y
         PHP
         INY
-        CPY nbytes
+        CPY integer_width
         BNE subtract_loop
         PLP
         RTS
 
     .lsr_remainder
-        LDX nbytes
+        LDX integer_width
         DEX
         LSR remainder, X
         PHP
@@ -206,14 +225,14 @@ FOR N%=0 TO 2 STEP 2
         ASL dividend
         PHP
         LDX #1
-        CPX nbytes
+        CPX integer_width
         BEQ asl_dividend_end
     .asl_dividend_loop
         PLP
         ROL dividend, X
         PHP
         INX
-        CPX nbytes
+        CPX integer_width
         BNE asl_dividend_loop
     .asl_dividend_end
         PLP
@@ -223,14 +242,14 @@ FOR N%=0 TO 2 STEP 2
         ASL temp_number
         PHP
         LDX #1
-        CPX nbytes
+        CPX integer_width
         BEQ asl_temp_number_end
     .asl_temp_number_loop
         PLP
         ROL temp_number, X
         PHP
         INX
-        CPX nbytes
+        CPX integer_width
         BNE asl_temp_number_loop
     .asl_temp_number_end
         PLP
@@ -244,7 +263,7 @@ FOR N%=0 TO 2 STEP 2
         ROL quotient, X
         PHP
         INX
-        CPX nbytes
+        CPX integer_width
         BNE rol_quotient_loop
         PLP
         RTS
@@ -257,7 +276,7 @@ FOR N%=0 TO 2 STEP 2
         ROL remainder, X
         PHP
         INX
-        CPX nbytes
+        CPX integer_width
         BNE rol_remainder_loop
         PLP
         RTS
@@ -268,14 +287,14 @@ FOR N%=0 TO 2 STEP 2
         ASL A
         ADC #operand_offset MOD 256
         STA dest
-        LDA #0
+        LDA #operand_offset DIV 256
         STA dest + 1
 		LDA #0
 		TAY
     .zero_operand_loop
 		STA (dest), Y
         INY
-        CPY nbytes
+        CPY integer_width
         BNE zero_operand_loop
         RTS
 
@@ -290,7 +309,7 @@ FOR N%=0 TO 2 STEP 2
         JSR load_operand ; operand2 -> remainder
         LDA #2 ; result
         JSR zero_operand ; result <- 0
-        LDA nbytes
+        LDA integer_width
         ASL A
         ASL A
         ASL A
@@ -318,7 +337,7 @@ FOR N%=0 TO 2 STEP 2
         JSR zero_operand ; quotient <- 0
         LDA #3 ; remainder
         JSR zero_operand ; remainder <- 0
-        LDA nbytes
+        LDA integer_width
         ASL A
         ASL A
         ASL A
@@ -336,7 +355,7 @@ FOR N%=0 TO 2 STEP 2
         PHP
 		STA temp_number, X
         INX
-        CPX nbytes
+        CPX integer_width
         BNE divide_subtract_loop
         PLP
         DEX
@@ -356,7 +375,7 @@ FOR N%=0 TO 2 STEP 2
     .print_hex
         STX src
         STY src + 1
-        LDY nbytes
+        LDY integer_width
     .print_hex_loop
         DEY
         LDA (src), Y
@@ -364,7 +383,7 @@ FOR N%=0 TO 2 STEP 2
         CPY #0
         BNE print_hex_loop
         RTS
-
+    
     .print_decimal
         STX src
         STY src + 1
@@ -377,7 +396,7 @@ FOR N%=0 TO 2 STEP 2
         JSR zero_operand
         LDA #10
         STA divisor
-        LDX nbytes
+        LDX integer_width
         DEX
         LDA decimal_digit_lookup, X
         STA counter2
@@ -390,7 +409,7 @@ FOR N%=0 TO 2 STEP 2
         STA print_buffer, X
         DEX
         BPL init_decimal_buffer_loop
-        LDA nbytes
+        LDA integer_width
     .fill_decimal_buffer_loop
         JSR divide
         LDA #0 ; dividend
@@ -407,7 +426,7 @@ FOR N%=0 TO 2 STEP 2
     .test_quotient
         ORA quotient, Y
         INY
-        CPY nbytes
+        CPY integer_width
         BNE test_quotient
         CMP #0
         BEQ output_decimal
@@ -420,15 +439,74 @@ FOR N%=0 TO 2 STEP 2
         BEQ output_decimal_end
         CMP #32
         BEQ output_decimal_skip
-        JSR OSWRCH%
+        JSR OSWRCH
     .output_decimal_skip
         INX
         BNE output_decimal_loop
     .output_decimal_end
         RTS
+
+    .print_hex_16bit
+        TYA
+        JSR print_hex_8bit
+        TXA
+        JMP print_hex_8bit
+
+    .run
+        LDA #8
+        JMP set_integer_width
+    .end
     ]
 NEXT
-?nbytes = 8
+PRINT ;~P%
+END
+
+DEF PROCtest
+?integer_width=8
+
+B%=&A5288000
+C%=&746
+D%=&52944000
+E%=&3A3
+X%=8
+Y%=4
+CALL print_decimal
+PRINT " + ";
+X%=&10
+Y%=4
+CALL print_decimal
+PRINT " = ";
+!operand1 = B%
+!(operand1 + 4) = C%
+!operand2 = D%
+!(operand2 + 4) = E%
+CALL add
+F%=!result
+G%=!(result + 4)
+X%=&18
+Y%=4
+CALL print_decimal
+PRINT
+
+X%=&18
+Y%=4
+CALL print_decimal
+PRINT " - ";
+X%=&10
+Y%=4
+CALL print_decimal
+PRINT " = ";
+!operand1 = F%
+!(operand1 + 4) = G%
+!operand2 = D%
+!(operand2 + 4) = E%
+CALL subtract
+X%=result MOD 256
+Y%=result DIV 256
+CALL print_decimal
+PRINT
+
+?integer_width = 8
 
 !operand1 = 4000000
 !(operand1 + 4) = 0
@@ -452,14 +530,13 @@ Y%=result DIV 256
 CALL print_decimal
 PRINT
 
-!operand1 = &A5288000
-!(operand1 + 4) = &746
-X%=operand1 MOD 256
-Y%=operand1 DIV 256
+B%=&A5288000
+C%=&746
+X%=8
+Y%=4
 CALL print_decimal
-
-!operand1 = &A5288000
-!(operand1 + 4) = &746
+!operand1 = B%
+!(operand1 + 4) = C%
 !operand2 = 2000000
 !(operand2 + 4) = 0
 PRINT " ~ ";STR$(!operand2);" = ";
@@ -469,7 +546,8 @@ Y%=result DIV 256
 CALL print_decimal
 PRINT
 
-?nbytes=4
+?integer_width=4
+
 !operand1 = 10
 !operand2 = 2
 PRINT STR$(!operand1);" ~ ";STR$(!operand2);" = ";
@@ -478,3 +556,17 @@ X%=result MOD 256
 Y%=result DIV 256
 CALL print_decimal
 PRINT
+ENDPROC
+
+DEF PROCsave
+A%=0
+B%=&41C0000
+C%=start
+D%=run
+E%=start
+F%=end
+X%=10
+Y%=4
+$&41C="L.MATH"
+CALL OSFILE
+ENDPROC

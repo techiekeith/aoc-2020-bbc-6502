@@ -1,12 +1,12 @@
 HIMEM=&6000
 NEW
 AUTO
-OSBGET%=&FFD7
-OSFIND%=&FFCE
-OSRDCH%=&FFE0
-OSASCI%=&FFE3
-OSNEWL%=&FFE7
-OSWRCH%=&FFEE
+OSBGET=&FFD7
+OSFIND=&FFCE
+OSRDCH=&FFE0
+OSASCI=&FFE3
+OSNEWL=&FFE7
+OSWRCH=&FFEE
 FOR O%=0 TO 2 STEP 2
 	P%=&70
 	[
@@ -71,11 +71,11 @@ FOR O%=0 TO 2 STEP 2
 	.close_file
 		LDA #0 ; close file handle
 		LDY filehandle
-		JMP OSFIND%
+		JMP OSFIND
 
 	.open_file
 		LDA #&40 ; open for reading; X and Y contain pointer to filename (X=LSB, Y=MSB)
-		JSR OSFIND%
+		JSR OSFIND
 		STA filehandle
 		BEQ read_file_error
 		RTS
@@ -325,7 +325,7 @@ FOR O%=0 TO 2 STEP 2
 		LDX #0
 	.output_decimal_loop
 		LDA output_buffer, X
-		JSR OSWRCH%
+		JSR OSWRCH
 		INX
 		CPX #10
 		BNE output_decimal_loop
@@ -363,7 +363,7 @@ FOR O%=0 TO 2 STEP 2
 		ADC #6
 
 	.print_this_char
-		JMP OSWRCH%
+		JMP OSWRCH
 
 	.print_string
 		PLA
@@ -374,7 +374,7 @@ FOR O%=0 TO 2 STEP 2
 	.print_string_loop
 		LDA (print_string_pointer), Y
 		BEQ print_string_return
-		JSR OSWRCH%
+		JSR OSWRCH
 		INY
 		BNE print_string_loop
 	.print_string_return
@@ -407,7 +407,7 @@ FOR O%=0 TO 2 STEP 2
 
 	.read_int_loop
 		LDY filehandle
-		JSR OSBGET%
+		JSR OSBGET
 		BCC read_byte
 		RTS ; reached EOF
 	.read_byte
@@ -642,12 +642,12 @@ FOR O%=0 TO 2 STEP 2
 		LDA #2
 		STA how_many_ints_to_sum
 		JSR solve
-		JSR OSNEWL%
+		JSR OSNEWL
 		JSR print_string
 		EQUS "Part 1 result: "
 		BRK
 		JSR print_decimal_result_32bit
-		JSR OSNEWL%
+		JSR OSNEWL
 	
 		LDA #ints MOD 256
 		STA head_pointer
@@ -657,12 +657,12 @@ FOR O%=0 TO 2 STEP 2
 		LDA #3
 		STA how_many_ints_to_sum
 		JSR solve
-		JSR OSNEWL%
+		JSR OSNEWL
 		JSR print_string
 		EQUS "Part 2 result: "
 		BRK
 		JSR print_decimal_result_32bit
-		JSR OSNEWL%
+		JSR OSNEWL
 	
 	.end
 		RTS

@@ -1,0 +1,40 @@
+HIMEM=&6000
+NEW
+AUTO
+OSFIND%=&FFCE
+OSBGET%=&FFD7
+OSRDCH%=&FFE0
+OSASCI%=&FFE3
+OSNEWL%=&FFE7
+OSWRCH%=&FFEE
+FOR N%=0 TO 2 STEP 2
+	P%=&70
+	[
+		OPT N%
+	]
+	P%=&6000
+	[
+		OPT N%
+		.filename
+			EQUS "T.DAY02" ; "A.DAY02"
+			EQUB 13
+		.file_handle
+			BRK
+		.line_buffer
+	]
+	[
+		OPT N%
+		.open_file
+			LDX #filename MOD 256
+			LDY #filename DIV 256
+			LDA #&40 ; open for reading
+			JSR OSFIND%
+			STA file_handle ; file handle
+			RTS
+		.close_file
+			LDA #0
+			LDY file_handle
+			JMP OSFIND%
+	]
+NEXT
+CALL start

@@ -37,7 +37,6 @@ remainder=math_library_start + &38
 
 map=&4000
 start=&7000
-buffer=&7700
 ptr=&8A
 
 FOR N%=0 TO 2 STEP 2

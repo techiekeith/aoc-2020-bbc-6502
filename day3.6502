@@ -1,0 +1,370 @@
+HIMEM=&4000
+NEW
+AUTO
+REM Operating system variables
+
+OSFIND=&FFCE
+OSGBPB=&FFD1
+OSBPUT=&FFD4
+OSBGET=&FFD7
+OSARGS=&FFDA
+OSFILE=&FFDD
+OSRDCH=&FFE0
+OSASCI=&FFE3
+OSNEWL=&FFE7
+OSWRCH=&FFEE
+
+REM Useful math library variables
+
+math_library_start=&7800
+set_integer_width=math_library_start
+add=math_library_start + 3
+subtract=math_library_start + 6
+multiply=math_library_start + 9
+divide=math_library_start + 12
+print_string=math_library_start + 15
+print_decimal=math_library_start + 18
+print_hex=math_library_start + 21
+print_hex_16bit=math_library_start + 24
+print_hex_8bit=math_library_start + 27
+operand1=math_library_start + &20
+dividend=operand1
+operand2=math_library_start + &28
+divisor=operand2
+result=math_library_start + &30
+quotient=result
+remainder=math_library_start + &38
+
+map=&4000
+start=&7000
+buffer=&7700
+ptr=&8A
+
+FOR N%=0 TO 2 STEP 2
+	P%=start
+	[
+		OPT N%
+		.math_filename
+			EQUS "L.MATH"
+			EQUB 13
+		.test_filename
+			EQUS "T.DAY03"
+			EQUB 13
+		.real_filename
+			EQUS "A.DAY03"
+			EQUB 13
+		.math_osfile_block
+			EQUW math_filename
+			EQUD math_library_start
+			EQUD 0
+			EQUD 0
+			EQUD 0
+		.osgbpb_block
+		.file_handle
+			EQUB 0
+			EQUD 0
+			EQUD 1 ; number of bytes to transfer
+			EQUD 0
+		.data
+		.columns
+			EQUD 0
+		.rows
+			EQUD 0
+		.column
+			EQUD 0
+		.row
+			EQUD 0
+		.right
+			EQUB 0
+		.down
+			EQUB 0
+		.trees
+			EQUD 0
+		.results
+		.part1_result
+			EQUD 0
+		.part2_result
+			EQUD 0
+
+		.test
+			LDX #test_filename MOD 256
+			LDY #test_filename DIV 256
+			JMP open_file
+		.run
+			LDX #real_filename MOD 256
+			LDY #real_filename DIV 256
+		.open_file
+			LDA #&40 ; open for reading
+			JSR OSFIND
+			STA file_handle ; file handle
+			TAY
+
+		.load_math_library
+			LDA #255
+			LDX #math_osfile_block MOD 256
+			LDY #math_osfile_block DIV 256
+			JSR OSFILE
+			LDA #4 ; 32-bit integers
+			JSR set_integer_width
+
+		.init_results
+			LDA #0
+			TAX
+		.init_results_loop
+			STA data, X
+			INX
+			CPX #(test - data)
+			BNE init_results_loop
+			LDA #map MOD 256
+			STA ptr
+			LDA #map DIV 256
+			STA ptr + 1
+			LDX #0
+
+		.read_file
+			LDY file_handle
+			JSR OSBGET
+			PHA
+			TXA
+			TAY
+			PLA
+			BCS close_file
+			CMP #10
+			BEQ end_line
+			CMP #13
+			BEQ read_file
+			STA (ptr), Y
+			TYA
+			TAX
+			INX
+			BNE read_file
+		.end_line
+			STX columns
+			TXA
+			CLC
+			ADC ptr
+			STA ptr
+			LDA #0
+			TAX
+			ADC ptr + 1
+			STA ptr + 1
+			INC rows
+			BNE read_file
+			INC rows + 1
+			JMP read_file
+
+		.close_file
+			LDA #0
+			LDY file_handle
+			JSR OSFIND
+		
+		.print_rows_and_columns
+			JSR print_string
+			EQUS "PTR: "
+			EQUB 0
+			LDX ptr
+			LDY ptr + 1
+			JSR print_hex_16bit
+			JSR print_string
+			EQUS " Rows: "
+			EQUB 0
+			LDX #rows MOD 256
+			LDY #rows DIV 256
+			JSR print_decimal
+			JSR print_string
+			EQUS " Columns: "
+			EQUB 0
+			LDX #columns MOD 256
+			LDY #columns DIV 256
+			JSR print_decimal
+			JSR OSNEWL
+		
+		.part1
+			LDX #3
+			LDY #1
+			JSR toboggan
+			LDA trees
+			STA part1_result
+			STA part2_result
+			LDA trees + 1
+			STA part1_result + 1
+			STA part2_result + 1
+
+		.part2
+			LDX #1
+			LDY #1
+			JSR toboggan_part2
+			LDX #5
+			LDY #1
+			JSR toboggan_part2
+			LDX #7
+			LDY #1
+			JSR toboggan_part2
+			LDX #1
+			LDY #2
+			JSR toboggan_part2
+		
+		.print_results
+			JSR print_string
+			EQUS "Part 1: "
+			EQUB 0
+			LDX #part1_result MOD 256
+			LDY #part1_result DIV 256
+			JSR print_decimal
+			JSR print_string
+			EQUB 13
+			EQUB 10
+			EQUS "Part 2: "
+			EQUB 0
+			LDX #part2_result MOD 256
+			LDY #part2_result DIV 256
+			JSR print_decimal
+			JMP OSNEWL
+		
+		.toboggan_part2
+			JSR toboggan
+			LDA part2_result
+			STA operand1
+			LDA part2_result + 1
+			STA operand1 + 1
+			LDA part2_result + 2
+			STA operand1 + 2
+			LDA part2_result + 3
+			STA operand1 + 3
+			LDA trees
+			STA operand2
+			LDA trees + 1
+			STA operand2 + 1
+			LDA #0
+			STA operand2 + 2
+			STA operand2 + 3
+			JSR multiply
+			LDA result
+			STA part2_result
+			LDA result + 1
+			STA part2_result + 1
+			LDA result + 2
+			STA part2_result + 2
+			LDA result + 3
+			STA part2_result + 3
+			RTS
+		
+		.toboggan
+			STX right
+			STY down
+			LDA #0
+			STA row
+			STA row + 1
+			STA column
+			STA column + 1
+			STA trees
+			STA trees + 1
+		.toboggan_loop
+			CLC
+			LDA right
+			ADC column
+			CMP columns
+			BCC store_column
+			SBC columns
+		.store_column
+			STA column
+			CLC
+			LDA down
+			ADC row
+			STA row
+			LDA #0
+			ADC row + 1
+			STA row + 1
+			CMP rows + 1
+			BCC get_pointer
+			LDA row
+			CMP rows
+			BCC get_pointer
+			JSR print_string
+			EQUS "Result: "
+			EQUB 0
+			LDX #trees MOD 256
+			LDY #trees DIV 256
+			JSR print_decimal
+			JSR OSNEWL
+			RTS ; hit bottom of map
+		.get_pointer
+			LDA columns
+			STA operand1
+			LDA columns + 1
+			STA operand1 + 1
+			LDA row
+			STA operand2
+			LDA row + 1
+			STA operand2 + 1
+			LDA #0
+			STA operand1 + 2
+			STA operand1 + 3
+			STA operand2 + 2
+			STA operand2 + 3
+			JSR multiply
+			CLC
+			LDA result
+			ADC #map MOD 256
+			STA ptr
+			LDA result + 1
+			ADC #map DIV 256
+			STA ptr + 1
+			LDY column
+			LDA (ptr), Y ; get terrain at location
+			CMP #35 ; hash symbol represents a tree
+			BNE next_move
+			INC trees
+			BNE next_move
+			INC trees + 1
+		.next_move
+			JMP toboggan_loop
+			LDA right
+			JSR print_hex_8bit
+			LDA down
+			JSR print_hex_8bit
+			LDX columns
+			LDY columns + 1
+			JSR print_hex_16bit
+			LDX rows
+			LDY rows + 1
+			JSR print_hex_16bit
+			LDX column
+			LDY column + 1
+			JSR print_hex_16bit
+			LDX row
+			LDY row + 1
+			JSR print_hex_16bit
+			LDX ptr
+			LDY ptr + 1
+			JSR print_hex_16bit
+			LDY column
+			LDA (ptr), Y
+			JSR print_hex_8bit
+			LDX trees
+			LDY trees + 1
+			JSR print_hex_16bit
+			JSR OSNEWL
+			JMP toboggan_loop
+
+		.end
+	]
+NEXT
+END
+
+DEF PROCtest
+CALL test
+ENDPROC
+
+DEF PROCsave
+A%=0
+B%=&41C0000
+C%=start
+D%=run
+E%=start
+F%=end
+X%=10
+Y%=4
+$&41C="DAY03"
+CALL OSFILE
+ENDPROC

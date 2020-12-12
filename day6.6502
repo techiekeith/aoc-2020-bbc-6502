@@ -1,0 +1,348 @@
+HIMEM=&7000
+NEW
+AUTO
+REM Operating system variables
+
+OSFIND=&FFCE
+OSGBPB=&FFD1
+OSBPUT=&FFD4
+OSBGET=&FFD7
+OSARGS=&FFDA
+OSFILE=&FFDD
+OSRDCH=&FFE0
+OSASCI=&FFE3
+OSNEWL=&FFE7
+OSWRCH=&FFEE
+
+REM Useful math library variables
+
+math_library_start=&7800
+set_integer_width=math_library_start
+add=math_library_start + 3
+subtract=math_library_start + 6
+multiply=math_library_start + 9
+divide=math_library_start + 12
+print_string=math_library_start + 15
+print_decimal=math_library_start + 18
+print_hex=math_library_start + 21
+print_hex_16bit=math_library_start + 24
+print_hex_8bit=math_library_start + 27
+operand1=math_library_start + &20
+dividend=operand1
+operand2=math_library_start + &28
+divisor=operand2
+result=math_library_start + &30
+quotient=result
+remainder=math_library_start + &38
+
+integer_width=4
+
+start=&7000
+buffer=&7400
+bitfield_lookup_table=&7380
+ptr=&8A
+
+DAY$="06"
+
+FOR N%=0 TO 2 STEP 2
+	P%=start
+	[
+		OPT N%
+		.math_filename
+			EQUS "L.MATH"
+			EQUB 13
+		.test_filename
+			EQUS "T.DAY"
+			EQUS DAY$
+			EQUB 13
+		.real_filename
+			EQUS "A.DAY"
+			EQUS DAY$
+			EQUB 13
+		.math_osfile_block
+			EQUW math_filename
+			EQUD math_library_start
+			EQUD 0
+			EQUD 0
+			EQUD 0
+		.file_handle
+			EQUB 0
+
+		.data
+		.current_field
+			EQUD 0
+		.part1_field
+			EQUD 0
+		.part2_field
+			EQUD 0
+		.results
+		.part1_result
+			EQUD 0
+		.part2_result
+			EQUD 0
+		.data_end
+
+		.test
+			LDX #test_filename MOD 256
+			LDY #test_filename DIV 256
+			JMP open_file
+		.run
+			LDX #real_filename MOD 256
+			LDY #real_filename DIV 256
+		.open_file
+			LDA #&40 ; open for reading
+			JSR OSFIND
+			STA file_handle ; file handle
+
+		.init_bitfield_lookup_table
+			LDA #1
+			STA bitfield_lookup_table
+			LDA #0
+			STA bitfield_lookup_table + 1
+			STA bitfield_lookup_table + 2
+			STA bitfield_lookup_table + 3
+			LDX #0
+		.init_bitfield_lookup_table_loop
+			LDA bitfield_lookup_table, X
+			ASL A
+			STA bitfield_lookup_table + 4, X
+			LDA bitfield_lookup_table + 1, X
+			ROL A
+			STA bitfield_lookup_table + 5, X
+			LDA bitfield_lookup_table + 2, X
+			ROL A
+			STA bitfield_lookup_table + 6, X
+			LDA bitfield_lookup_table + 3, X
+			ROL A
+			STA bitfield_lookup_table + 7, X
+			TXA
+			ADC #4
+			TAX
+			BPL init_bitfield_lookup_table_loop
+
+		.load_math_library
+			LDA #255
+			LDX #math_osfile_block MOD 256
+			LDY #math_osfile_block DIV 256
+			JSR OSFILE
+			LDA #integer_width ; 32-bit integers
+			JSR set_integer_width
+
+		.init_results
+			LDA #0
+			TAX
+		.init_results_loop
+			STA data, X
+			INX
+			CPX #(data_end - data)
+			BNE init_results_loop
+
+		.reset_buffer_pointer
+			LDA #buffer MOD 256
+			STA ptr
+			LDA #buffer DIV 256
+			STA ptr + 1
+			LDX #0
+
+		.read_file
+			LDY file_handle
+			JSR OSBGET
+			BCS close_file
+			CMP #10
+			BEQ end_line
+			CMP #13
+			BEQ read_file
+			CPX #0
+			BEQ skip_dex
+			DEX
+		.skip_dex
+			LDY #0
+			STA (ptr), Y
+		.inc_ptr_call
+			JSR inc_ptr
+			BEQ close_file
+			BNE read_file
+		.end_line
+			LDA #32
+			LDY #0
+			STA (ptr), Y
+			INX
+			CPX #2
+			BNE inc_ptr_call
+		.end_record
+			TYA
+			STA (ptr), Y
+			JSR parse_record
+			JMP reset_buffer_pointer
+
+		.close_file
+			LDY #0
+			TYA
+			STA (ptr), Y
+			LDY file_handle
+			JSR OSFIND
+			JSR parse_record
+
+		.print_results
+			JSR print_string
+			EQUS "Part 1: "
+			EQUB 0
+			LDX #part1_result MOD 256
+			LDY #part1_result DIV 256
+			JSR print_decimal
+			JSR print_string
+			EQUB 13
+			EQUB 10
+			EQUS "Part 2: "
+			EQUB 0
+			LDX #part2_result MOD 256
+			LDY #part2_result DIV 256
+			JSR print_decimal
+			JMP OSNEWL
+		
+		.parse_record
+			LDX #buffer MOD 256
+			LDY #buffer DIV 256
+			STX ptr
+			STY ptr + 1
+			LDA #0
+			TAX
+		.clear_fields_loop
+			STA part1_field, X
+			INX
+			CPX #4
+			BNE clear_fields_loop_skip
+			LDA #255
+		.clear_fields_loop_skip
+			CPX #8
+			BNE clear_fields_loop
+		.parse_record_loop
+			LDA #0
+			STA current_field + 3
+			STA current_field + 2
+			STA current_field + 1
+			STA current_field
+		.parse_field_loop
+			LDY #0
+			LDA (ptr), Y
+			BEQ next_record
+			AND #31
+			BEQ next_field
+			ASL A
+			ASL A
+			TAX
+			LDA bitfield_lookup_table + 3, X
+			ORA current_field + 3
+			STA current_field + 3
+			LDA bitfield_lookup_table + 2, X
+			ORA current_field + 2
+			STA current_field + 2
+			LDA bitfield_lookup_table + 1, X
+			ORA current_field + 1
+			STA current_field + 1
+			LDA bitfield_lookup_table, X
+			ORA current_field
+			STA current_field
+			JSR inc_ptr
+			JMP parse_field_loop
+		.next_field
+			JSR inc_ptr
+			JSR calc_running_totals
+			JMP parse_record_loop
+		.next_record
+			JMP calc_totals_for_record
+		
+		.calc_running_totals
+			LDX #0
+		.calc_running_totals_loop
+			LDA current_field, X
+			PHA
+			ORA part1_field, X
+			STA part1_field, X
+			PLA
+			AND part2_field, X
+			STA part2_field, X
+			INX
+			CPX #4
+			BNE calc_running_totals_loop
+			RTS
+		
+		.calc_totals_for_record
+			LDX #0
+			JSR calc_totals_for_part
+			LDX #4
+			JSR calc_totals_for_part
+			RTS
+		
+		.calc_totals_for_part
+			LDY #32
+		.calc_totals_for_part_loop
+			LSR part1_field + 3, X
+			ROR part1_field + 2, X
+			ROR part1_field + 1, X
+			ROR part1_field, X
+			BCC calc_totals_for_part_skip
+			INC part1_result, X
+			BNE calc_totals_for_part_loop
+			INC part1_result + 1, X
+			BNE calc_totals_for_part_loop
+			INC part1_result + 2, X
+			BNE calc_totals_for_part_loop
+			INC part1_result + 3, X
+		.calc_totals_for_part_skip
+			DEY
+			BNE calc_totals_for_part_loop
+			RTS
+
+		.calc_totals_for_part2
+			LDX #32 ; copypasta from calc_totals_for_part1 above
+			LDY #0
+		.calc_totals_for_part2_loop
+			LSR part2_field + 3
+			ROR part2_field + 2
+			ROR part2_field + 1
+			ROR part2_field
+			BCC calc_totals_for_part2_skip
+			INY
+		.calc_totals_for_part2_skip
+			DEX
+			BNE calc_totals_for_part2_loop
+			TYA
+			CLC
+			ADC part2_result
+			STA part2_result
+			LDA #0
+			ADC part2_result + 1
+			STA part2_result + 1
+			RTS
+
+		.inc_ptr
+			INC ptr
+			BNE inc_ptr_end
+			INC ptr + 1
+			BNE inc_ptr_end
+		.inc_ptr_end
+			RTS
+
+		.end
+	]
+NEXT
+PRINT;~P%
+END
+
+DEF PROCtest
+CALL test
+ENDPROC
+
+DEF PROCsave
+A%=0
+B%=&41C0000
+C%=start
+D%=run
+E%=start
+F%=end
+X%=10
+Y%=4
+$&41C="DAY" + DAY$
+CALL OSFILE
+ENDPROC

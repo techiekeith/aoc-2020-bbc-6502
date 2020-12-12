@@ -1,0 +1,276 @@
+HIMEM=&7000
+NEW
+AUTO
+REM Operating system variables
+
+OSFIND=&FFCE
+OSGBPB=&FFD1
+OSBPUT=&FFD4
+OSBGET=&FFD7
+OSARGS=&FFDA
+OSFILE=&FFDD
+OSRDCH=&FFE0
+OSASCI=&FFE3
+OSNEWL=&FFE7
+OSWRCH=&FFEE
+
+REM Useful math library variables
+
+math_library_start=&7800
+set_integer_width=math_library_start
+add=math_library_start + 3
+subtract=math_library_start + 6
+multiply=math_library_start + 9
+divide=math_library_start + 12
+print_string=math_library_start + 15
+print_decimal=math_library_start + 18
+print_hex=math_library_start + 21
+print_hex_16bit=math_library_start + 24
+print_hex_8bit=math_library_start + 27
+operand1=math_library_start + &20
+dividend=operand1
+operand2=math_library_start + &28
+divisor=operand2
+result=math_library_start + &30
+quotient=result
+remainder=math_library_start + &38
+
+integer_width=2
+
+start=&7000
+string_xy_ptr=&8A
+ptr=&88
+
+DAY$="05"
+
+FOR N%=0 TO 2 STEP 2
+	P%=start
+	[
+		OPT N%
+		.math_filename
+			EQUS "L.MATH"
+			EQUB 13
+		.real_filename
+			EQUS "A.DAY"
+			EQUS DAY$
+			EQUB 13
+		.math_osfile_block
+			EQUW math_filename
+			EQUD math_library_start
+			EQUD 0
+			EQUD 0
+			EQUD 0
+		.osgbpb_block
+		.file_handle
+			EQUB 0
+		.block_copy_dst
+			EQUD 0
+			EQUD 0
+		.sequential_pointer
+			EQUD 0
+		.block_copy
+			EQUD buffer ; destination pointer
+			EQUD 12 ; number of bytes to transfer
+
+		.buffer
+			EQUD 0
+			EQUD 0
+			EQUD 0
+		.end_buffer
+			EQUB 0
+		.char_to_find
+			EQUB 0
+
+		.part1_result
+			EQUW 0
+		.part2_result
+			EQUW 0
+
+		.run
+			LDA #0
+			STA sequential_pointer
+			STA sequential_pointer + 1
+			STA sequential_pointer + 2
+			STA sequential_pointer + 3
+			STA part1_result
+			STA part1_result + 1
+			STA part2_result
+			STA part2_result + 1
+
+			LDA #255
+			LDX #math_osfile_block MOD 256
+			LDY #math_osfile_block DIV 256
+			JSR OSFILE
+			LDA #integer_width ; 16-bit integers
+			JSR set_integer_width
+
+			LDX #real_filename MOD 256
+			LDY #real_filename DIV 256
+			LDA #&40 ; open for reading
+			JSR OSFIND
+			STA file_handle ; file handle
+			LDA #22
+			JSR OSWRCH
+			LDA #7
+			JSR OSWRCH
+
+		.read_file
+			LDX #0
+		.block_copy_loop
+			LDA block_copy, X
+			STA block_copy_dst, X
+			INX
+			CPX #8
+			BNE block_copy_loop
+			LDA #3 ; get bytes
+			LDX #osgbpb_block MOD 256
+			LDY #osgbpb_block DIV 256
+			JSR OSGBPB
+			BCS close_file
+			LDA #31
+			JSR OSWRCH
+			LDA #0
+			JSR OSWRCH
+			JSR OSWRCH
+			LDX #buffer MOD 256
+			LDY #buffer DIV 256
+			JSR print_string_xy
+			LDX #0
+			STX ptr
+			STX ptr + 1
+		.bit_loop
+			LDA buffer, X ; bit 1 clear (L) = 0, bit 2 clear (B/R) = 1
+			EOR #4 ; xor bit 2
+			ROR A
+			ROR A
+			BCC add_bit
+			ROR A
+			BCC add_bit
+		.add_bit
+			ROL ptr
+			ROL ptr + 1
+			INX
+			CPX #10
+			BNE bit_loop
+			LDA #&7C ; start of display buffer
+			ORA ptr + 1
+			STA ptr + 1
+			LDA #95 ; SAA5050 5Fh = ASCII 23h
+			LDY #0
+			STA (ptr), Y
+			LDX ptr
+			LDY ptr + 1
+			LDA #31
+			JSR OSWRCH
+			LDA #11
+			JSR OSWRCH
+			LDA #0
+			JSR OSWRCH
+			LDA #61 ; ASCII equals symbol
+			JSR OSWRCH
+			LDA #32 ; ASCII equals symbol
+			JSR OSWRCH
+			JSR print_hex_16bit
+			JMP read_file
+
+		.close_file
+			LDA #0
+			LDY file_handle
+			JSR OSFIND
+		
+		.find_largest_seat_number
+			LDA #0
+			STA ptr
+			LDA #127
+			STA ptr + 1
+			LDY #0
+			LDA #95
+			STA char_to_find ; look for an occupied seat
+		.find_seats
+			DEY
+			LDA (ptr), Y
+			CMP char_to_find
+			BNE next_seat
+			CMP #95
+			BNE empty_seat
+			STY part1_result ; found occupied seat
+			LDA ptr + 1
+			AND #3
+			STA part1_result + 1
+			LDA #32
+			STA char_to_find ; now look for an empty seat
+			JMP next_seat
+		.empty_seat
+			STY part2_result ; found empty seat
+			LDA ptr + 1
+			AND #3
+			STA part2_result + 1
+			JMP print_results
+		.next_seat
+			CPY #0
+			BNE find_seats
+			DEC ptr + 1
+			LDA ptr + 1
+			CMP #&7B
+			BNE find_seats
+
+		.print_results
+			LDA #31
+			JSR OSWRCH
+			LDA #0
+			JSR OSWRCH
+			LDA #23
+			JSR OSWRCH
+			JSR print_string
+			EQUB &84 ; alpha blue
+			EQUB &9D ; new background
+			EQUB &83 ; alpha yellow
+			EQUS "Part 1: "
+			EQUB 0
+			LDX #part1_result MOD 256
+			LDY #part1_result DIV 256
+			JSR print_decimal
+			JSR print_string
+			EQUB &86 ; alpha cyan
+			EQUS " Part 2: "
+			EQUB 0
+			LDX #part2_result MOD 256
+			LDY #part2_result DIV 256
+			JSR print_decimal
+			JMP OSNEWL
+		
+		.print_string_xy
+			STX string_xy_ptr
+			STY string_xy_ptr + 1
+			LDY #0
+		.print_string_xy_loop
+			LDA (string_xy_ptr), Y
+			BEQ print_string_xy_end
+			JSR OSWRCH
+			INY
+			BNE print_string_xy_loop
+		.print_string_xy_end
+			RTS
+
+		.end
+	]
+NEXT
+PRINT;~P%
+END
+
+DEF PROCtest
+PRINT "No tests specified; please write some!"
+ENDPROC
+
+DEF PROCsave
+A%=0
+B%=&41C0000
+C%=start
+D%=run
+E%=start
+F%=end
+X%=10
+Y%=4
+$&41C="DAY" + DAY$
+CALL OSFILE
+ENDPROC

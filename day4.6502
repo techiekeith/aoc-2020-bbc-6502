@@ -1,0 +1,709 @@
+HIMEM=&6C00
+NEW
+AUTO
+REM Operating system variables
+
+OSFIND=&FFCE
+OSGBPB=&FFD1
+OSBPUT=&FFD4
+OSBGET=&FFD7
+OSARGS=&FFDA
+OSFILE=&FFDD
+OSRDCH=&FFE0
+OSASCI=&FFE3
+OSNEWL=&FFE7
+OSWRCH=&FFEE
+
+REM Useful math library variables
+
+math_library_start=&7800
+set_integer_width=math_library_start
+add=math_library_start + 3
+subtract=math_library_start + 6
+multiply=math_library_start + 9
+divide=math_library_start + 12
+print_string=math_library_start + 15
+print_decimal=math_library_start + 18
+print_hex=math_library_start + 21
+print_hex_16bit=math_library_start + 24
+print_hex_8bit=math_library_start + 27
+operand1=math_library_start + &20
+dividend=operand1
+operand2=math_library_start + &28
+divisor=operand2
+result=math_library_start + &30
+quotient=result
+remainder=math_library_start + &38
+
+integer_width=4
+
+start=&7000
+buffer=&6E00
+value=&6C00
+ptr=&8A
+ptr2=&88
+ptr3=&86
+
+DAY$="04"
+
+FOR N%=0 TO 2 STEP 2
+	P%=start
+	[
+		OPT N%
+		.math_filename
+			EQUS "L.MATH"
+			EQUB 13
+		.test_filename
+			EQUS "T.DAY"
+			EQUS DAY$
+			EQUB 13
+		.real_filename
+			EQUS "A.DAY"
+			EQUS DAY$
+			EQUB 13
+		.field_names
+			EQUS "byr:iyr:eyr:hgt:hcl:ecl:pid:"
+		.eye_colors
+			EQUS "amb"
+			BRK
+			EQUS "blu"
+			BRK
+			EQUS "brn"
+			BRK
+			EQUS "gry"
+			BRK
+			EQUS "grn"
+			BRK
+			EQUS "hzl"
+			BRK
+			EQUS "oth"
+			BRK
+		.math_osfile_block
+			EQUW math_filename
+			EQUD math_library_start
+			EQUD 0
+			EQUD 0
+			EQUD 0
+		.osgbpb_block
+		.file_handle
+			EQUB 0
+			EQUD 0
+			EQUD 1 ; number of bytes to transfer
+			EQUD 0
+
+		.fields
+			EQUD 0 ; byr
+			EQUD 0
+			EQUD 0
+			EQUD 0
+			EQUD 0 ; iyr
+			EQUD 0
+			EQUD 0
+			EQUD 0
+			EQUD 0 ; eyr
+			EQUD 0
+			EQUD 0
+			EQUD 0
+			EQUD 0 ; hgt
+			EQUD 0
+			EQUD 0
+			EQUD 0
+			EQUD 0 ; hcl
+			EQUD 0
+			EQUD 0
+			EQUD 0
+			EQUD 0 ; ecl
+			EQUD 0
+			EQUD 0
+			EQUD 0
+			EQUD 0 ; pid
+			EQUD 0
+			EQUD 0
+			EQUD 0
+		.fields_end
+
+		.data
+		.field_offset
+			EQUB 0
+		.part1_validation_failures
+			EQUB 0
+		.part2_validation_failures
+			EQUB 0
+		.results
+		.part1_result
+			EQUD 0
+		.part2_result
+			EQUD 0
+		.data_end
+
+		.test
+			LDX #test_filename MOD 256
+			LDY #test_filename DIV 256
+			JMP open_file
+		.run
+			LDX #real_filename MOD 256
+			LDY #real_filename DIV 256
+		.open_file
+			LDA #&40 ; open for reading
+			JSR OSFIND
+			STA file_handle ; file handle
+			TAY
+
+		.load_math_library
+			LDA #255
+			LDX #math_osfile_block MOD 256
+			LDY #math_osfile_block DIV 256
+			JSR OSFILE
+			LDA #integer_width ; 32-bit integers
+			JSR set_integer_width
+
+		.init_results
+			LDA #0
+			TAX
+		.init_results_loop
+			STA data, X
+			INX
+			CPX #(data_end - data)
+			BNE init_results_loop
+
+		.reset_buffer_pointer
+			LDA #buffer MOD 256
+			STA ptr
+			LDA #buffer DIV 256
+			STA ptr + 1
+			LDX #0
+
+		.read_file
+			LDY file_handle
+			JSR OSBGET
+			BCS close_file
+			CMP #10
+			BEQ end_line
+			CMP #13
+			BEQ read_file
+			CPX #0
+			BEQ skip_dex
+			DEX
+		.skip_dex
+			CMP #32
+			BEQ end_field
+			LDY #0
+			STA (ptr), Y
+		.inc_ptr
+			INC ptr
+			BNE read_file
+			INC ptr + 1
+			BNE read_file
+			BEQ close_file
+		.end_line
+			INX
+			LDA #32
+		.end_field
+			LDY #0
+			STA (ptr), Y
+			CPX #2
+			BNE inc_ptr
+			TYA
+			STA (ptr), Y
+			JSR parse_record
+			JMP reset_buffer_pointer
+
+		.close_file
+			LDY #0
+			TYA
+			STA (ptr), Y
+			LDY file_handle
+			JSR OSFIND
+			JSR parse_record
+
+		.print_results
+			JSR print_string
+			EQUS "Part 1: "
+			EQUB 0
+			LDX #part1_result MOD 256
+			LDY #part1_result DIV 256
+			JSR print_decimal
+			JSR print_string
+			EQUB 13
+			EQUB 10
+			EQUS "Part 2: "
+			EQUB 0
+			LDX #part2_result MOD 256
+			LDY #part2_result DIV 256
+			JSR print_decimal
+			JMP OSNEWL
+		
+		.parse_record
+			LDX #buffer MOD 256
+			LDY #buffer DIV 256
+			STX ptr
+			STY ptr + 1
+		.init_fields
+			LDA #0
+			TAX
+		.init_fields_loop
+			STA fields, X
+			INX
+			CPX #(fields_end - fields)
+			BNE init_fields_loop
+		.read_field
+			LDX #0
+			LDY #0
+		.read_field_loop
+			LDA (ptr), Y
+			BEQ store_field_last
+			CMP #32
+			BEQ store_field_next
+			CMP #10
+			BEQ store_field_next
+			STA value, X
+			INY
+			INX
+			BNE read_field_loop
+
+		.store_field_next
+			JSR store_field
+			JMP read_field
+		.store_field_last
+			JSR store_field
+			JMP validate_record
+		.store_field
+			CLC
+			INY
+			TYA
+			ADC ptr
+			STA ptr
+			LDA #0
+			STA value, X
+			ADC ptr + 1
+			STA ptr + 1
+			JSR get_field_number
+			BCS store_field_end
+			ASL A
+			ASL A
+			TAY
+			LDX #4
+		.store_value_in_field
+			LDA value, X
+			STA fields, Y
+			BEQ store_field_end
+			INX
+			INY
+			CPX #16
+			BNE store_value_in_field
+		.store_field_end
+			RTS
+		
+		.get_ecl_number
+			LDA #eye_colors MOD 256
+			STA ptr2
+			LDA #eye_colors DIV 256
+			STA ptr2 + 1
+			LDX #0
+		.copy_ecl_value_loop
+			LDA fields, Y
+			STA value, X
+			INX
+			INY
+			CPX #4
+			BNE copy_ecl_value_loop
+			BEQ seek_string
+		.get_field_number
+			LDA #field_names MOD 256
+			STA ptr2
+			LDA #field_names DIV 256
+			STA ptr2 + 1
+		.seek_string
+			LDX #0
+			LDY #0
+		.compare_values
+			LDA (ptr2), Y
+			CMP value, X
+			BNE next_field
+			INY
+			INX
+			CPX #8
+			BEQ found_match
+			CPX #4
+			BNE compare_values
+		.found_match
+			TYA
+			SEC
+			SBC #4
+			CLC
+			RTS
+		.next_field
+			INY
+			INX
+			CPX #4
+			BNE next_field
+			LDX #0
+			CPY #28
+			BNE compare_values
+			SEC
+			RTS
+		
+		.validate_record
+			LDX #0
+			TXA
+			STX part1_validation_failures
+			STX part2_validation_failures
+		.check_fields
+			TXA
+			PHA
+			JSR part1_validator
+			PLA
+			TAX
+			PHA
+			JSR part2_validator
+		.check_next_field
+			PLA
+			TAX
+			INX
+			CPX #7
+			BNE check_fields
+			LDA part1_validation_failures
+			BNE check_part2
+			INC part1_result
+			BNE check_part2
+			INC part1_result + 1
+			BNE check_part2
+			INC part1_result + 2
+			BNE check_part2
+			INC part1_result + 3
+		.check_part2
+			LDA part2_validation_failures
+			BNE check_done
+			INC part2_result
+			BNE check_done
+			INC part2_result + 1
+			BNE check_done
+			INC part2_result + 2
+			BNE check_done
+			INC part2_result + 3
+		.check_done
+			JSR OSNEWL ; DEBUG
+			RTS
+
+		.part1_validator
+			TXA ; X = field number
+			ASL A
+			ASL A
+			ASL A
+			ASL A
+			TAY
+			LDA fields, Y
+			BNE part1_done
+			INC part1_validation_failures
+		.part1_done
+			RTS
+
+		.part2_validator
+			TXA ; X = field number
+			ASL A
+			TAY
+			LDA part2_field_validators, Y
+			STA ptr2
+			LDA part2_field_validators + 1, Y
+			STA ptr2 + 1
+			TYA
+			ASL A
+			ASL A
+			ASL A
+			STA field_offset
+			JMP (ptr2)
+
+		.part2_field_validators
+			EQUW byr_validator
+			EQUW iyr_validator
+			EQUW eyr_validator
+			EQUW hgt_validator
+			EQUW hcl_validator
+			EQUW ecl_validator
+			EQUW pid_validator
+		
+		.validation_failed
+			INC part2_validation_failures
+			JSR print_string ; DEBUG
+			EQUB 129
+			EQUS "no"
+			EQUB 135
+			BRK
+			RTS
+
+		.validation_passed
+			JSR print_string ; DEBUG
+			EQUB 130
+			EQUS "ok"
+			EQUB 135
+			BRK
+			RTS
+
+		.byr_validator
+			JSR print_string ; DEBUG
+			EQUS "byr:"
+			EQUB 0
+			LDY field_offset
+			JSR parse_int_field
+			LDX #1920 MOD 256
+			LDY #1920 DIV 256
+			JSR compare_operand2_with_value
+			BCC byr_validator_fail
+			LDX #2003 MOD 256
+			LDY #2003 DIV 256
+			JSR compare_operand2_with_value
+			BCC byr_validator_pass
+		.byr_validator_fail
+			JMP validation_failed
+		.byr_validator_pass
+			JMP validation_passed
+
+		.iyr_validator
+			JSR print_string ; DEBUG
+			EQUS "iyr:"
+			EQUB 0
+			LDY field_offset
+			JSR parse_int_field
+			LDX #2010 MOD 256
+			LDY #2010 DIV 256
+			JSR compare_operand2_with_value
+			BCC iyr_validator_fail
+			LDX #2021 MOD 256
+			LDY #2021 DIV 256
+			JSR compare_operand2_with_value
+			BCC iyr_validator_pass
+		.iyr_validator_fail
+			JMP validation_failed
+		.iyr_validator_pass
+			JMP validation_passed
+
+		.eyr_validator
+			JSR print_string ; DEBUG
+			EQUS "eyr:"
+			EQUB 0
+			LDY field_offset
+			JSR parse_int_field
+			LDX #2020 MOD 256
+			LDY #2020 DIV 256
+			JSR compare_operand2_with_value
+			BCC eyr_validator_fail
+			LDX #2031 MOD 256
+			LDY #2031 DIV 256
+			JSR compare_operand2_with_value
+			BCC eyr_validator_pass
+		.eyr_validator_fail
+			JMP validation_failed
+		.eyr_validator_pass
+			JMP validation_passed
+
+		.hgt_validator
+			JSR print_string ; DEBUG
+			EQUS "hgt:"
+			EQUB 0
+			LDY field_offset
+			JSR parse_int_field
+			LDA fields, Y
+			CMP #&69 ; i
+			BNE maybe_cm
+			INY
+			LDA fields, Y
+			CMP #&6E ; n
+			BNE hgt_validator_fail
+			LDX #59
+			LDY #0
+			JSR compare_operand2_with_value
+			BCC hgt_validator_fail
+			LDX #77
+			LDY #0
+			JSR compare_operand2_with_value
+			BCC hgt_validator_pass
+			JMP hgt_validator_fail
+		.maybe_cm
+			CMP #&63 ; c
+			BNE hgt_validator_fail
+			INY
+			LDA fields, Y
+			CMP #&6D ; m
+			BNE hgt_validator_fail
+			LDX #150
+			LDY #0
+			JSR compare_operand2_with_value
+			BCC hgt_validator_fail
+			LDX #194
+			LDY #0
+			JSR compare_operand2_with_value
+			BCC hgt_validator_pass
+		.hgt_validator_fail
+			JMP validation_failed
+		.hgt_validator_pass
+			JMP validation_passed
+
+		.hcl_validator
+			JSR print_string ; DEBUG
+			EQUS "hcl:"
+			EQUB 0
+			LDY field_offset
+			LDA fields, Y
+			CMP #35
+			BNE hcl_validator_fail
+			LDX #0
+			INY
+		.hcl_validator_loop
+			LDA fields, Y
+			CMP #48
+			BCC hcl_validator_fail
+			CMP #58
+			BCC hcl_validator_next
+			ORA #32
+			CMP #97
+			BCC hcl_validator_fail
+			CMP #103
+			BCS hcl_validator_fail
+		.hcl_validator_next
+			INX
+			INY
+			CPX #6
+			BNE hcl_validator_loop
+			LDA fields, Y
+			BEQ hcl_validator_pass
+		.hcl_validator_fail
+			JMP validation_failed
+		.hcl_validator_pass
+			JMP validation_passed
+
+		.ecl_validator
+			JSR print_string ; DEBUG
+			EQUS "ecl:"
+			EQUB 0
+			LDY field_offset
+			JSR get_ecl_number
+			BCC ecl_validator_pass
+			JMP validation_failed
+		.ecl_validator_pass
+			JMP validation_passed
+
+		.pid_validator
+			JSR print_string ; DEBUG
+			EQUS "pid:"
+			EQUB 0
+			LDY field_offset
+			LDX #0
+		.pid_validator_loop
+			LDA fields, Y
+			CMP #48
+			BCC pid_validator_fail
+			CMP #58
+			BCS pid_validator_fail
+			INX
+			INY
+			CPX #9
+			BNE pid_validator_loop
+			LDA fields, Y
+			BEQ pid_validator_pass
+		.pid_validator_fail
+			JMP validation_failed
+		.pid_validator_pass
+			JMP validation_passed
+
+		.compare_operand2_with_value
+			LDA operand2 + 2
+			ORA operand2 + 3
+			BNE operand2_is_larger
+			CPY operand2 + 1
+			BEQ compare_operand2_byte0
+			BCC operand2_is_larger
+		.operand2_is_smaller
+			CLC
+			RTS
+		.compare_operand2_byte0
+			CPX operand2
+			BEQ operand2_is_larger
+			BCS operand2_is_smaller
+		.operand2_is_larger
+			SEC
+			RTS
+
+		.parse_int_field
+			LDA #0
+			STA operand2
+			STA operand2 + 1
+			STA operand2 + 2
+			STA operand2 + 3
+		.parse_int_field_loop
+			LDA fields, Y
+			CMP #48
+			BCC parse_int_field_done
+			CMP #58
+			BCS parse_int_field_done
+			AND #15
+			PHA
+			TYA
+			PHA
+			LDA #10
+			STA operand1
+			LDA #0
+			STA operand1 + 1
+			STA operand1 + 2
+			STA operand1 + 3
+			JSR multiply
+			CLC
+			PLA
+			TAY
+			PLA
+			ADC result
+			STA operand2
+			LDA #0
+			ADC result + 1
+			STA operand2 + 1
+			LDA #0
+			ADC result + 2
+			STA operand2 + 2
+			LDA #0
+			ADC result + 3
+			STA operand2 + 3
+			INY
+			BNE parse_int_field_loop
+		.parse_int_field_done
+			RTS
+
+		.print_xy_string
+			STX ptr3
+			STY ptr3 + 1
+			LDY #0
+		.print_xy_string_loop
+			LDA (ptr3), Y
+			BEQ print_xy_string_end
+			JSR OSWRCH
+			INY
+			BNE print_xy_string_loop
+		.print_xy_string_end
+			RTS
+
+		.end
+	]
+NEXT
+PRINT;~P%
+END
+
+DEF PROCtest
+CALL test
+*LIB L
+*MATH
+A$="ecl:gry pid:860033327 eyr:2020 hcl:#fffffd byr:1937 iyr:2017 cid:147 hgt:183cm"
+$buffer=A$
+buffer?LEN(A$)=0
+CALL parse_record
+ENDPROC
+
+DEF PROCsave
+A%=0
+B%=&41C0000
+C%=start
+D%=run
+E%=start
+F%=end
+X%=10
+Y%=4
+$&41C="DAY" + DAY$
+CALL OSFILE
+ENDPROC

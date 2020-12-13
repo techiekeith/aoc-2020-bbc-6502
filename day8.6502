@@ -1,0 +1,430 @@
+HIMEM=&6800
+NEW
+AUTO
+REM Operating system variables
+
+OSFIND=&FFCE
+OSGBPB=&FFD1
+OSBPUT=&FFD4
+OSBGET=&FFD7
+OSARGS=&FFDA
+OSFILE=&FFDD
+OSRDCH=&FFE0
+OSASCI=&FFE3
+OSNEWL=&FFE7
+OSWRCH=&FFEE
+
+REM Library pointers
+
+lib_start=&7600
+set_integer_width=lib_start
+add=lib_start + 3
+subtract=lib_start + 6
+multiply=lib_start + 9
+divide=lib_start + 12
+print_string=lib_start + 15
+print_decimal=lib_start + 18
+print_hex=lib_start + 21
+print_hex_16bit=lib_start + 24
+print_hex_8bit=lib_start + 27
+copy_from_operand=lib_start + 30
+copy_to_operand=lib_start + 33
+open_file=lib_start + 36
+close_file=lib_start + 39
+read_line=lib_start + 42
+read_record=lib_start + 45
+parse_int=lib_start + 48
+init=lib_start + 51
+print_results=lib_start + 54
+print_string_at_pointer=lib_start + 57
+tick=lib_start + 60
+operand1=lib_start + &70
+dividend=operand1
+operand2=lib_start + &78
+divisor=operand2
+result=lib_start + &80
+quotient=result
+remainder=lib_start + &88
+part1_result=lib_start + &B0
+part2_result=lib_start + &B8
+tick_colour=lib_start + &D8
+
+vm=&6800
+start=&7000
+vm_ptr=&86
+ptr=&88
+
+DAY$="08"
+
+FOR N%=0 TO 2 STEP 2
+	P%=start
+	[
+		OPT N%
+		.lib_filename
+			EQUS "L.AOCLIB"
+			EQUB 13
+		.lib_osfile_block
+			EQUW lib_filename
+			EQUD lib_start
+			EQUD 0
+			EQUD 0
+			EQUD 0
+
+		.vm_end
+			EQUW 0
+		.program_counter
+			EQUW 0
+		.accumulator
+			EQUW 0
+		.number
+			EQUW 0
+		.instruction
+			EQUB 0
+		.program_flags
+			EQUB 0 ; bit 0 = skip jump; bit 1 = terminated; bit 2 = visited
+		.jump_instruction_to_skip
+			EQUW 0
+		.current_jump_instruction
+			EQUW 0
+
+		.load_library
+			LDA #255
+			LDX #lib_osfile_block MOD 256
+			LDY #lib_osfile_block DIV 256
+			JSR OSFILE
+			LDA #4 ; 32-bit integers
+			JMP init
+
+		.test
+			JSR load_library
+			SEC
+			BCS skipload
+		.run
+			JSR load_library
+			CLC
+		.skipload
+			LDA #8
+			JSR open_file
+			LDX #vm MOD 256
+			LDY #vm DIV 256
+			STX vm_ptr
+			STY vm_ptr + 1
+			LDA #1
+			STA tick_colour
+			JSR print_string
+			EQUS "Loading data ..."
+			EQUB 0
+
+		.read_file
+			LDX #buffer MOD 256
+			LDY #buffer DIV 256
+			JSR read_line
+			BCS done
+			JSR tick
+			JSR parse_line
+			JMP read_file
+
+		.done
+			JSR print_string
+			EQUB 130
+			EQUS "done."
+			EQUB 13
+			EQUB 10
+			EQUB 0
+			JSR close_file
+			LDA vm_ptr
+			STA vm_end
+			LDA vm_ptr + 1
+			STA vm_end + 1
+			INC tick_colour
+			JSR do_part_1
+			INC tick_colour
+			JSR do_part_2
+			JMP print_results
+		
+		.do_part_1
+			JSR print_string
+			EQUS "Running program ..."
+			EQUB 0
+			LDA #255
+			STA jump_instruction_to_skip
+			STA jump_instruction_to_skip + 1
+			JSR run_program
+			JSR print_string
+			EQUB 130
+			EQUS "done!"
+			EQUB 13
+			EQUB 10
+			EQUB 0
+			LDA accumulator
+			STA part1_result
+			LDA accumulator + 1
+			STA part1_result + 1
+			RTS
+
+		.do_part_2
+			LDA #0
+			STA jump_instruction_to_skip
+			STA jump_instruction_to_skip + 1
+		.part_2_loop
+			JSR print_string ; DEBUG START
+			EQUS "Trying with skip="
+			EQUB 0
+			LDA #2
+			JSR set_integer_width
+			PHA
+			LDX #jump_instruction_to_skip MOD 256
+			LDY #jump_instruction_to_skip DIV 256
+			JSR print_decimal
+			PLA
+			JSR set_integer_width 
+			JSR print_string
+			EQUS " ..."
+			EQUB 0 ; DEBUG END
+			JSR run_program
+			LDA program_flags
+			ROR A
+			BCS found_part_2_solution
+			JSR print_string
+			EQUB 129
+			EQUS "no"
+			EQUB 13
+			EQUB 0
+			INC jump_instruction_to_skip
+			BNE part_2_loop
+			INC jump_instruction_to_skip + 1
+			BNE part_2_loop
+			JSR print_string
+			EQUB 10
+			EQUS "No solution found."
+			EQUB 13
+			EQUB 10
+			EQUB 0
+			RTS ; no solution found
+		.found_part_2_solution
+			JSR print_string
+			EQUB 130
+			EQUS "found!"
+			EQUB 13
+			EQUB 10
+			EQUB 0
+			LDA accumulator
+			STA part2_result
+			LDA accumulator + 1
+			STA part2_result + 1
+			RTS
+
+		.parse_line
+			LDX #(buffer + 5) MOD 256
+			LDY #(buffer + 5) DIV 256
+			JSR parse_int
+			LDX buffer + 4
+			CPX #43 ; '+'
+			BEQ its_a_plus
+			SEC ; negate result
+			LDA operand2
+			EOR #&FF
+			ADC #0
+			STA operand2
+			LDA operand2 + 1
+			AND #15
+			EOR #15
+			ADC #0
+			STA operand2 + 1
+		.its_a_plus
+			LDA operand2 + 1
+			LDX buffer
+			CPX #&61 ; 'a'
+			BNE test_jmp
+			ORA #&20
+		.test_jmp
+			CPX #&6A ; 'j'
+			BNE test_nop
+			ORA #&40
+		.test_nop
+			LDY #1
+			STA (vm_ptr), Y
+			DEY
+			LDA operand2
+			STA (vm_ptr), Y
+			CLC
+			LDA #2
+			ADC vm_ptr
+			STA vm_ptr
+			LDA #0
+			ADC vm_ptr + 1
+			STA vm_ptr + 1
+			RTS
+		
+		.reset_program
+			LDX #vm MOD 256
+			LDY #vm DIV 256
+			STX vm_ptr
+			STY vm_ptr + 1
+			LDY #1
+			LDA vm_ptr + 1
+			CMP vm_end + 1
+			BEQ reset_program_last_loop
+		.reset_program_loop
+			LDA (vm_ptr), Y
+			AND #&7F
+			STA (vm_ptr), Y
+			INC vm_ptr
+			INC vm_ptr
+			BNE reset_program_loop
+			INC vm_ptr + 1
+			LDA vm_ptr + 1
+			CMP vm_end + 1
+			BNE reset_program_loop
+		.reset_program_last_loop
+			LDA (vm_ptr), Y
+			AND #&7F
+			STA (vm_ptr), Y
+			INC vm_ptr
+			INC vm_ptr
+			LDA vm_ptr
+			CMP vm_end
+			BCC reset_program_last_loop
+			RTS
+
+		.run_program
+			LDA #0
+			STA program_flags
+			STA current_jump_instruction
+			STA current_jump_instruction + 1
+			STA program_counter
+			STA program_counter + 1
+			STA accumulator
+			STA accumulator + 1
+			JSR reset_program
+		.run_program_loop
+			JSR tick
+			JSR run_instruction
+			LDA program_flags
+			ROR A
+			BCS stop_program_loop ; bit 0 = 1
+			ROR A
+			BCC run_program_loop ; bit 1 = 0
+		.stop_program_loop
+			RTS
+
+		.run_instruction
+			LDA program_counter ; vm_ptr = vm + (PC << 1)
+			ASL A
+			STA number
+			LDA program_counter + 1
+			ROL A
+			STA number + 1
+			LDA #vm MOD 256
+			ADC number
+			STA vm_ptr
+			LDA #vm DIV 256
+			ADC number + 1
+			STA vm_ptr + 1
+			CMP vm_end + 1
+			BCC can_continue
+			LDA vm_ptr
+			CMP vm_end
+			BCC can_continue
+			LDA #1
+			ORA program_flags
+			STA program_flags
+			RTS ; program terminated
+		.can_continue
+			LDY #0
+			LDA (vm_ptr), Y
+			STA number
+			INY
+			LDA (vm_ptr), Y
+			PHP
+			PHA
+			AND #15
+			STA number + 1
+			PLA
+			PHA
+			AND #240
+			STA instruction
+			PLA
+			PLP
+			BPL mark_visited
+			LDA #2
+			ORA program_flags
+			STA program_flags
+			RTS ; infinite loop detected
+		.mark_visited
+			LDA (vm_ptr), Y
+			ORA #&80
+			STA (vm_ptr), Y ; mark visited
+			ASL A
+			ASL A
+			BCS jmp_instruction_check ; bit 6 = jmp
+			ASL A
+			BCS acc_instruction ; bit 5 = acc
+		.advance_program_counter
+			JSR set_number_to_one
+		.jmp_instruction
+			CLC
+			LDA number
+			ADC program_counter
+			STA program_counter
+			LDA number + 1
+			ADC program_counter + 1
+			AND #15
+			STA program_counter + 1
+			RTS
+		.acc_instruction
+			CLC
+			LDA number
+			ADC accumulator
+			STA accumulator
+			LDA number + 1
+			ADC accumulator + 1
+			AND #15
+			STA accumulator + 1
+			JMP advance_program_counter
+		.jmp_instruction_check
+			LDA jump_instruction_to_skip
+			CMP current_jump_instruction
+			BNE increment_current_jump
+			LDA jump_instruction_to_skip + 1
+			CMP current_jump_instruction + 1
+			BNE increment_current_jump
+			JSR set_number_to_one
+		.increment_current_jump
+			INC current_jump_instruction
+			BNE jmp_instruction
+			INC current_jump_instruction + 1
+			BNE jmp_instruction
+			BEQ jmp_instruction
+		
+		.set_number_to_one
+			LDA #1
+			STA number
+			LDA #0
+			STA number + 1
+			RTS
+		
+		.buffer
+
+		.end
+	]
+NEXT
+PRINT;~P%
+END
+
+DEF PROCtest
+CALL test
+ENDPROC
+
+DEF PROCsave
+A%=0
+B%=&41C0000
+C%=start
+D%=run
+E%=start
+F%=end
+X%=10
+Y%=4
+$&41C="DAY" + DAY$
+CALL OSFILE
+ENDPROC

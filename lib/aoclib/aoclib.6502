@@ -1,0 +1,911 @@
+HIMEM=&7600
+NEW
+AUTO
+REM Operating system variables
+
+OSFIND=&FFCE
+OSGBPB=&FFD1
+OSBPUT=&FFD4
+OSBGET=&FFD7
+OSARGS=&FFDA
+OSFILE=&FFDD
+OSRDCH=&FFE0
+OSASCI=&FFE3
+OSNEWL=&FFE7
+OSWRCH=&FFEE
+OSWORD=&FFF1
+
+start=&7600
+ptr=&8A
+src=&8C
+dest=&8E
+
+FOR N%=0 TO 2 STEP 2
+    P%=start
+    [
+        OPT N%
+
+        .set_integer_width_v
+            JMP set_integer_width
+        .add_v
+            JMP add
+        .subtract_v
+            JMP subtract
+        .multiply_v
+            JMP multiply
+        .divide_v
+            JMP divide
+        .print_string_v
+            JMP print_string
+        .print_decimal_v
+            JMP print_decimal
+        .print_hex_v
+            JMP print_hex
+        .print_hex_16bit_v
+            JMP print_hex_16bit
+        .print_hex_8bit_v
+            JMP print_hex_8bit
+        .copy_from_operand_v
+            JMP copy_from_operand
+        .copy_to_operand_v
+            JMP copy_to_operand
+        .open_file_v
+            JMP open_file
+        .close_file_v
+            JMP close_file
+        .read_line_v
+            JMP read_line
+        .read_record_v
+            JMP read_record
+        .parse_int_v
+            JMP parse_int
+        .init_v
+            JMP init
+        .print_results_v
+            JMP print_results
+        .print_string_at_pointer_v
+            JMP print_string_at_pointer
+        .tick_v
+            JMP tick
+        .reserved
+            RTS
+            EQUW 0
+            RTS
+            EQUW 0
+            RTS
+            EQUW 0
+            RTS
+            EQUW 0
+            RTS
+            EQUW 0
+            RTS
+            EQUW 0
+            RTS
+            EQUW 0
+            RTS
+            EQUW 0
+            RTS
+            EQUW 0
+            RTS
+            EQUW 0
+            RTS
+            EQUW 0
+            RTS
+            EQUW 0
+            RTS
+            EQUW 0
+            RTS
+            EQUW 0
+            RTS
+            EQUW 0
+
+        .ptr_bak
+            EQUW 0        
+		.data
+        .counter
+            EQUB 0
+        .counter2
+            EQUB 0
+        .operand_offset
+        .dividend
+        .operand1
+            EQUD 0 ; idx 0
+            EQUD 0
+        .divisor
+        .operand2
+            EQUD 0 ; idx 1
+            EQUD 0
+        .result
+        .quotient
+            EQUD 0 ; idx 2
+            EQUD 0
+        .remainder
+            EQUD 0 ; idx 3
+            EQUD 0
+        .temp_number
+            EQUD 0 ; idx 4
+            EQUD 0
+        .elapsed_time
+            EQUD 0 ; idx 5
+            EQUD 0
+        .start_time
+            EQUD 0 ; idx 6
+            EQUD 0
+        .end_time
+            EQUD 0 ; idx 7
+            EQUD 0
+		.part1_result
+			EQUD 0 ; idx 8
+			EQUD 0
+		.part2_result
+			EQUD 0 ; idx 9
+			EQUD 0
+
+        .decimal_print_buffer
+            EQUD 0
+            EQUD 0
+            EQUD 0
+            EQUD 0
+            EQUD 0
+            EQUW 0
+		.data_end
+
+        .file_handle
+            EQUB 0
+
+        .integer_width
+            EQUB 8
+		.tick_colour
+			EQUB 7
+		.tick_counter
+			EQUB 0
+
+        .decimal_digit_lookup
+            EQUB 3 ; 255
+            EQUB 5 ; 65535
+            EQUB 8 ; 16777215
+            EQUB 10 ; 4294967295
+            EQUB 13 ; 1099511627775
+            EQUB 15 ; 281474976710655
+            EQUB 17 ; 72057594037927936
+            EQUB 20 ; 18446744073709551615
+		.tick_blocks
+			EQUB &A1
+			EQUB &A2
+			EQUB &A8
+			EQUB &E0
+			EQUB &B0
+			EQUB &A4
+
+        .input_filename
+            EQUS "X.DAY00"
+            EQUB 13
+
+        .set_integer_width
+            CMP #0
+            BEQ invalid_integer_width
+            CMP #9
+            BCS invalid_integer_width
+            STA temp_number
+            LDA integer_width
+            PHA
+            LDA temp_number
+            STA integer_width
+            PLA
+            RTS
+        .invalid_integer_width
+            BRK
+            EQUB 255
+            EQUS "integer_width must be between 1 and 8"
+            BRK
+
+        .print_string
+            PLA
+            STA src
+            PLA
+            STA src + 1
+            LDY #1
+        .print_string_loop
+            LDA (src), Y
+            BEQ print_string_return
+            JSR OSWRCH
+            INY
+            BNE print_string_loop
+        .print_string_return
+            CLC
+            TYA
+            ADC src
+            STA src
+            LDA #0
+            ADC src + 1
+            PHA
+            LDA src
+            PHA
+            RTS
+
+        .print_string_at_pointer
+            STX src
+            STY src + 1
+            LDY #0
+        .print_string_loop_2
+            LDA (src), Y
+            BEQ print_string_end
+            JSR OSWRCH
+            INY
+            BNE print_string_loop_2
+        .print_string_end
+            RTS
+
+        .print_hex_8bit
+            PHA
+            LSR A
+            LSR A
+            LSR A
+            LSR A
+            JSR print_digit
+            PLA
+            AND #15
+
+        .print_digit
+            ORA #48
+            CMP #58
+            BCC print_this_char
+            ADC #6
+
+        .print_this_char
+            JMP OSWRCH
+
+        .copy_to_operand
+            STX src
+            STY src + 1
+            ASL A
+            ASL A
+            ASL A
+            ADC #operand_offset MOD 256
+            STA dest
+            LDA #operand_offset DIV 256
+            STA dest + 1
+            JMP copy_src_to_dest
+
+        .copy_from_operand
+            STX dest
+            STY dest + 1
+            ASL A
+            ASL A
+            ASL A
+            ADC #operand_offset MOD 256
+            STA src
+            LDA #operand_offset DIV 256
+            STA src + 1
+        
+        .copy_src_to_dest
+            LDY #0
+        .copy_src_to_dest_loop
+            LDA (src), Y
+            STA (dest), Y
+            INY
+            CPY integer_width
+            BNE copy_src_to_dest_loop
+            RTS
+
+        .add
+            LDY #0
+            CLC
+            PHP
+        .add_loop
+            PLP
+            LDA operand1, Y
+            ADC operand2, Y
+            STA result, Y
+            PHP
+            INY
+            CPY integer_width
+            BNE add_loop
+            PLP
+            RTS
+
+        .subtract
+            LDY #0
+            SEC
+            PHP
+        .subtract_loop
+            PLP
+            LDA operand1, Y
+            SBC operand2, Y
+            STA result, Y
+            PHP
+            INY
+            CPY integer_width
+            BNE subtract_loop
+            PLP
+            RTS
+
+        .lsr_remainder
+            LDX integer_width
+            DEX
+            LSR remainder, X
+            PHP
+            CPX #0
+            BEQ lsr_remainder_end
+        .lsr_remainder_loop
+            PLP
+            DEX
+            ROR remainder, X
+            PHP
+            CPX #0
+            BNE lsr_remainder_loop
+        .lsr_remainder_end
+            PLP
+            RTS
+
+        .asl_dividend
+            ASL dividend
+            PHP
+            LDX #1
+            CPX integer_width
+            BEQ asl_dividend_end
+        .asl_dividend_loop
+            PLP
+            ROL dividend, X
+            PHP
+            INX
+            CPX integer_width
+            BNE asl_dividend_loop
+        .asl_dividend_end
+            PLP
+            RTS
+
+        .asl_temp_number
+            ASL temp_number
+            PHP
+            LDX #1
+            CPX integer_width
+            BEQ asl_temp_number_end
+        .asl_temp_number_loop
+            PLP
+            ROL temp_number, X
+            PHP
+            INX
+            CPX integer_width
+            BNE asl_temp_number_loop
+        .asl_temp_number_end
+            PLP
+            RTS
+
+        .rol_quotient
+            PHP
+            LDX #0
+        .rol_quotient_loop
+            PLP
+            ROL quotient, X
+            PHP
+            INX
+            CPX integer_width
+            BNE rol_quotient_loop
+            PLP
+            RTS
+
+        .rol_remainder
+            PHP
+            LDX #0
+        .rol_remainder_loop
+            PLP
+            ROL remainder, X
+            PHP
+            INX
+            CPX integer_width
+            BNE rol_remainder_loop
+            PLP
+            RTS
+
+        .zero_operand
+            ASL A
+            ASL A
+            ASL A
+            ADC #operand_offset MOD 256
+            STA dest
+            LDA #operand_offset DIV 256
+            STA dest + 1
+            LDA #0
+            TAY
+        .zero_operand_loop
+            STA (dest), Y
+            INY
+            CPY integer_width
+            BNE zero_operand_loop
+            RTS
+
+        .multiply
+            LDA #0 ; operand1
+            LDX #temp_number MOD 256
+            LDY #temp_number DIV 256
+            JSR copy_from_operand ; operand1 -> temp_number
+            LDA #1 ; operand2
+            LDX #remainder MOD 256
+            LDY #remainder DIV 256
+            JSR copy_from_operand ; operand2 -> remainder
+            LDA #2 ; result
+            JSR zero_operand ; result <- 0
+            LDA integer_width
+            ASL A
+            ASL A
+            ASL A
+            STA counter ; number of bits to rotate
+        .multiply_loop
+            LDA #1 ; operand2
+            LDX #result MOD 256
+            LDY #result DIV 256
+            JSR copy_to_operand ; operand2 <- result
+            JSR lsr_remainder
+            BCC multiply_loop_end
+            LDA #0 ; operand1
+            LDX #temp_number MOD 256
+            LDY #temp_number DIV 256
+            JSR copy_to_operand ; operand1 <- temp_number
+            JSR add
+        .multiply_loop_end
+            JSR asl_temp_number
+            DEC counter
+            BNE multiply_loop
+            RTS
+
+        .divide
+            LDA #2 ; quotient
+            JSR zero_operand ; quotient <- 0
+            LDA #3 ; remainder
+            JSR zero_operand ; remainder <- 0
+            LDA integer_width
+            ASL A
+            ASL A
+            ASL A
+            STA counter ; number of bits to rotate
+        .divide_loop
+            JSR asl_dividend
+            JSR rol_remainder
+            LDX #0
+            SEC
+            PHP
+        .divide_subtract_loop
+            LDA remainder, X
+            PLP
+            SBC divisor, X
+            PHP
+            STA temp_number, X
+            INX
+            CPX integer_width
+            BNE divide_subtract_loop
+            PLP
+            DEX
+            LDA temp_number, X
+            BMI divide_next
+            LDA #3 ; remainder
+            LDX #temp_number MOD 256
+            LDY #temp_number DIV 256
+            JSR copy_to_operand ; remainder <- temp_number
+            SEC
+        .divide_next
+            JSR rol_quotient
+            DEC counter
+            BNE divide_loop
+            RTS
+        
+        .print_hex
+            STX src
+            STY src + 1
+            LDY integer_width
+        .print_hex_loop
+            DEY
+            LDA (src), Y
+            JSR print_hex_8bit
+            CPY #0
+            BNE print_hex_loop
+            RTS
+        
+        .print_decimal
+            LDA #0 ; dividend
+            JSR copy_to_operand
+            LDA #1 ; divisor
+            JSR zero_operand
+            LDA #10
+            STA divisor
+            LDX integer_width
+            DEX
+            LDA decimal_digit_lookup, X
+            STA counter2
+            TAX
+            LDA #0
+            STA decimal_print_buffer, X
+            DEX
+            LDA #32
+        .init_decimal_buffer_loop
+            STA decimal_print_buffer, X
+            DEX
+            BPL init_decimal_buffer_loop
+            LDA integer_width
+        .fill_decimal_buffer_loop
+            JSR divide
+            LDA #0 ; dividend
+            LDX #result MOD 256
+            LDY #result DIV 256
+            JSR copy_to_operand ; dividend <- result
+            LDA remainder
+            ORA #48
+            DEC counter2
+            LDX counter2
+            STA decimal_print_buffer, X
+            LDA #0
+            TAY
+        .test_quotient
+            ORA quotient, Y
+            INY
+            CPY integer_width
+            BNE test_quotient
+            CMP #0
+            BEQ output_decimal
+            CPX #0
+            BNE fill_decimal_buffer_loop
+        .output_decimal
+            LDX #0
+        .output_decimal_loop
+            LDA decimal_print_buffer, X
+            BEQ output_decimal_end
+            CMP #32
+            BEQ output_decimal_skip
+            JSR OSWRCH
+        .output_decimal_skip
+            INX
+            BNE output_decimal_loop
+        .output_decimal_end
+            RTS
+
+        .print_hex_16bit
+            TYA
+            JSR print_hex_8bit
+            TXA
+            JMP print_hex_8bit
+
+        .open_file
+            PHA
+            LDA #65 ; 'A'
+            BCC set_dir
+            LDA #84 ; 'T'
+        .set_dir
+            STA input_filename
+            LDA #48
+            STA input_filename + 5
+            STA input_filename + 6
+            PLA
+        .day_tens_loop
+            CMP #10
+            BCC set_day_unit
+            INC input_filename + 5
+            SBC #10
+            BCS day_tens_loop
+        .set_day_unit
+            ORA #48
+            STA input_filename + 6
+			LDA #&40
+            LDX #input_filename MOD 256
+            LDY #input_filename DIV 256
+			JSR OSFIND
+			STA file_handle
+            RTS
+
+		.close_file
+            LDA #0
+			LDY file_handle
+			JMP OSFIND
+
+		.read_line
+			STX ptr
+			STY ptr + 1
+		.read_bytes
+			LDY file_handle
+			JSR OSBGET
+			BCS end_line
+			CMP #10
+			BEQ end_line_clc
+			CMP #13
+			BEQ read_bytes ; skip CR
+			LDY #0
+			STA (ptr), Y
+			INC ptr
+			BNE read_bytes
+			INC ptr + 1
+			BNE read_bytes
+            SEC
+		.end_line
+			LDY #0
+			TYA
+			STA (ptr), Y
+			RTS
+		.end_line_clc
+            CLC
+            BCC end_line
+        
+        .read_record
+            STX ptr
+            STY ptr + 1
+        .read_record_loop
+            LDX ptr
+            STX ptr_bak
+            LDY ptr + 1
+            STY ptr_bak + 1
+            JSR read_line
+            BCS end_record
+            LDX ptr
+            CPX ptr_bak
+            BNE read_next_line
+            LDX ptr + 1
+            CPX ptr_bak + 1
+            BNE read_next_line
+            CLC
+            BCC end_record
+        .read_next_line
+            LDA #32
+			LDY #0
+			STA (ptr), Y
+			INC ptr
+			BNE read_record_loop
+			INC ptr + 1
+			BNE read_record_loop
+            SEC
+        .end_record
+			LDY #0
+			TYA
+			STA (ptr), Y
+            RTS
+
+		.parse_int
+			STX ptr
+			STY ptr + 1
+			LDA #1 ; operand2
+            JSR zero_operand
+			LDY #0
+		.parse_int_loop
+			LDA (ptr), Y
+			CMP #48
+			BCC parse_int_done
+			CMP #58
+			BCS parse_int_done
+			AND #15
+            PHA
+            TYA
+            PHA
+			LDA #0 ; operand1
+            JSR zero_operand
+			LDA #10
+			STA operand1
+			JSR multiply
+			LDA #0 ; operand1
+            JSR zero_operand
+            PLA
+            TAY
+            PLA
+            STA operand1
+            TYA
+            PHA
+            LDX #result MOD 256
+            LDY #result DIV 256
+            LDA #1 ; operand2
+            JSR copy_to_operand
+            JSR add
+            LDX #result MOD 256
+            LDY #result DIV 256
+            LDA #1 ; operand2
+            JSR copy_to_operand
+            PLA
+            TAY
+			INY
+			BNE parse_int_loop
+		.parse_int_done
+			RTS ; result is in operand2
+        
+        .init
+            JSR set_integer_width
+            LDA #1
+            LDX #start_time MOD 256
+            LDY #start_time DIV 256
+            JMP OSWORD
+
+        .print_results
+            LDA #0 ; operand1
+            JSR zero_operand
+            LDA #1 ; operand2
+            JSR zero_operand
+            LDA #1
+            LDX #end_time MOD 256
+            LDY #end_time DIV 256
+            JSR OSWORD
+            LDA #0 ; operand1
+            LDX #end_time MOD 256
+            LDY #end_time DIV 256
+            JSR copy_to_operand
+            LDA #1 ; operand2
+            LDX #start_time MOD 256
+            LDY #start_time DIV 256
+            JSR copy_to_operand
+            JSR subtract
+            LDX #result MOD 256
+            LDY #result DIV 256
+            LDA #0 ; operand1
+            JSR copy_to_operand
+            LDA #1 ; operand2
+            JSR zero_operand
+            LDA #10
+            STA operand2
+            JSR multiply
+            LDX #elapsed_time MOD 256
+            LDY #elapsed_time DIV 256
+            LDA #2 ; result
+            JSR copy_from_operand
+
+			JSR print_string
+			EQUS "Part 1: "
+			EQUB 0
+			LDX #part1_result MOD 256
+			LDY #part1_result DIV 256
+			JSR print_decimal
+			JSR print_string
+			EQUB 13
+			EQUB 10
+			EQUS "Part 2: "
+			EQUB 0
+			LDX #part2_result MOD 256
+			LDY #part2_result DIV 256
+			JSR print_decimal
+			JSR print_string
+			EQUB 13
+			EQUB 10
+			EQUS "Time elapsed: "
+			EQUB 0
+			LDX #elapsed_time MOD 256
+			LDY #elapsed_time DIV 256
+			JSR print_decimal
+			JSR print_string
+			EQUS "ms"
+			EQUB 13
+			EQUB 10
+            EQUB 0
+            RTS
+		
+		.tick
+			LDA #144
+			ORA tick_colour
+			JSR OSWRCH
+			LDX tick_counter
+			INX
+			CPX #6
+			BNE show_tick
+			LDX #0
+		.show_tick
+			STX tick_counter
+			LDA tick_blocks, X
+			JSR OSWRCH
+            LDA #135
+			JSR OSWRCH
+			LDA #8
+			JSR OSWRCH
+			JSR OSWRCH
+			JMP OSWRCH
+
+        .run
+            BRK
+            BRK
+            EQUS "Advent of Code 2020 Utility Library. By @TechieKeith"
+            BRK
+        .end
+    ]
+NEXT
+P.;~P%
+END
+
+DEF PROCtest
+?integer_width=8
+
+B%=&A5288000
+C%=&746
+D%=&52944000
+E%=&3A3
+X%=8
+Y%=4
+CALL print_decimal
+PRINT " + ";
+X%=&10
+Y%=4
+CALL print_decimal
+PRINT " = ";
+!operand1 = B%
+!(operand1 + 4) = C%
+!operand2 = D%
+!(operand2 + 4) = E%
+CALL add
+F%=!result
+G%=!(result + 4)
+X%=&18
+Y%=4
+CALL print_decimal
+PRINT
+
+X%=&18
+Y%=4
+CALL print_decimal
+PRINT " - ";
+X%=&10
+Y%=4
+CALL print_decimal
+PRINT " = ";
+!operand1 = F%
+!(operand1 + 4) = G%
+!operand2 = D%
+!(operand2 + 4) = E%
+CALL subtract
+X%=result MOD 256
+Y%=result DIV 256
+CALL print_decimal
+PRINT
+
+?integer_width = 8
+
+!operand1 = 4000000
+!(operand1 + 4) = 0
+!operand2 = 2000000
+!(operand2 + 4) = 0
+PRINT STR$(!operand1); " x ";STR$(!operand2);" = ";
+CALL multiply
+X%=result MOD 256
+Y%=result DIV 256
+CALL print_decimal
+PRINT
+
+!operand1 = 4000000
+!(operand1 + 4) = 0
+!operand2 = 2000000
+!(operand2 + 4) = 0
+PRINT STR$(!operand1); " ~ ";STR$(!operand2);" = ";
+CALL divide
+X%=result MOD 256
+Y%=result DIV 256
+CALL print_decimal
+PRINT
+
+B%=&A5288000
+C%=&746
+X%=8
+Y%=4
+CALL print_decimal
+!operand1 = B%
+!(operand1 + 4) = C%
+!operand2 = 2000000
+!(operand2 + 4) = 0
+PRINT " ~ ";STR$(!operand2);" = ";
+CALL divide
+X%=result MOD 256
+Y%=result DIV 256
+CALL print_decimal
+PRINT
+
+?integer_width=4
+
+!operand1 = 10
+!operand2 = 2
+PRINT STR$(!operand1);" ~ ";STR$(!operand2);" = ";
+CALL divide
+X%=result MOD 256
+Y%=result DIV 256
+CALL print_decimal
+PRINT
+ENDPROC
+
+DEF PROCsave
+A%=0
+B%=&41C0000
+C%=start
+D%=run
+E%=start
+F%=end
+X%=10
+Y%=4
+$&41C="L.AOCLIB"
+CALL OSFILE
+ENDPROC

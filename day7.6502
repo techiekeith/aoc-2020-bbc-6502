@@ -1,0 +1,665 @@
+HIMEM=&4C00
+NEW
+AUTO
+
+OSFIND=&FFCE
+OSBGET=&FFD7
+OSFILE=&FFDD
+OSNEWL=&FFE7
+OSWRCH=&FFEE
+
+math_library_start=&7800
+set_integer_width=&7800
+multiply=&7809
+print_string=&780F
+print_decimal=&7812
+print_hex_8bit=&781B
+operand1=&7820
+operand2=&7828
+result=&7830
+
+rules=&4C00
+start=&7200
+words=&7680
+buffer=&7B00
+
+current_rule=&70
+bag_to_find=&70
+word1=&70
+word2=&71
+contents_offset=&72
+word_number=&80
+more=&81
+contents_idx=&82
+temp_y=&83
+rules_ptr2=&84
+rules_ptr=&86
+ptr2=&88
+ptr=&8A
+
+integer_width=4
+DAY$="07"
+
+FOR N%=0 TO 2 STEP 2
+	P%=start
+	[
+		OPT N%
+		.math_fsp
+			EQUS "L.MATH"
+			EQUB 13
+		.test_fsp
+			EQUS "T.DAY"
+			EQUS DAY$
+			EQUB 13
+		.real_fsp
+			EQUS "A.DAY"
+			EQUS DAY$
+			EQUB 13
+		.initial_words
+			EQUS "shiny gold "
+			EQUB 0
+		.math_osfile_block
+			EQUW math_fsp
+			EQUD math_library_start
+			EQUD 0
+			EQUD 0
+			EQUD 0
+		.file_handle
+			EQUB 0
+
+		.data
+		.part1_result
+			EQUD 0
+		.part2_result
+			EQUD 0
+		.data_end
+
+		.test
+			LDX #test_fsp MOD 256
+			LDY #test_fsp DIV 256
+			JMP open_file
+		.run
+			LDX #real_fsp MOD 256
+			LDY #real_fsp DIV 256
+		.open_file
+			LDA #&40 ; open for reading
+			JSR OSFIND
+			STA file_handle ; file handle
+
+			LDA #255
+			LDX #math_osfile_block MOD 256
+			LDY #math_osfile_block DIV 256
+			JSR OSFILE
+			LDA #integer_width ; 32-bit integers
+			JSR set_integer_width
+
+			LDX #0
+		.init_words
+			LDA initial_words, X
+			STA words, X
+			INX
+			CMP #0
+			BNE init_words
+			TAX
+		.init_data_loop
+			STA data, X
+			INX
+			CPX #(data_end - data)
+			BNE init_data_loop
+			JSR reset_rules_ptr
+			LDA #0
+			STA rules
+			STA rules + 1
+			LDA #3
+			STA tick_colour
+
+		.reset_buffer_ptr
+			LDA #buffer MOD 256
+			STA ptr
+			LDA #buffer DIV 256
+			STA ptr + 1
+
+		.read_file
+			LDY file_handle
+			JSR OSBGET
+			BCS close_file
+			CMP #10
+			BEQ end_record
+			CMP #13
+			BEQ read_file
+			LDY #0
+			STA (ptr), Y
+		.inc_ptr_call
+			JSR inc_ptr
+			BEQ close_file
+			BNE read_file
+		.end_record
+			LDY #0
+			LDA #32
+			STA (ptr), Y
+			TYA
+			INY
+			STA (ptr), Y
+			JSR parse_record
+			JMP reset_buffer_ptr
+
+		.inc_ptr
+			INC ptr
+			BNE inc_ptr_end
+			INC ptr + 1
+			BNE inc_ptr_end
+		.inc_ptr_end
+			RTS
+
+		.close_file
+			LDY #0
+			TYA
+			STA (ptr), Y
+			LDY file_handle
+			JSR OSFIND
+
+			LDA #2
+			STA tick_colour
+			JSR find_containers ; part 1
+			LDA #6
+			STA tick_colour
+			JSR reset_markers ; part 2 prep
+			JSR get_total_bags ; part 2
+
+		.print_results
+			JSR print_string
+			EQUS "Part 1: "
+			EQUB 0
+			LDX #part1_result MOD 256
+			LDY #part1_result DIV 256
+			JSR print_decimal
+			JSR print_string
+			EQUB 13
+			EQUB 10
+			EQUS "Part 2: "
+			EQUB 0
+			LDX #part2_result MOD 256
+			LDY #part2_result DIV 256
+			JSR print_decimal
+			JMP OSNEWL
+		
+		.reset_rules_ptr
+			LDA #rules MOD 256
+			STA rules_ptr
+			LDA #rules DIV 256
+			STA rules_ptr + 1
+			RTS
+
+		.parse_record
+			LDA #0
+			TAY
+		.reset_current_rule
+			STA current_rule, Y
+			INY
+			CPY #16
+			BNE reset_current_rule
+			LDX #buffer MOD 256
+			LDY #buffer DIV 256
+			STX ptr
+			STY ptr + 1
+			LDY #0
+			JSR find_word ; first adj.
+			STA word1
+			JSR find_word ; second adj.
+			STA word2
+			JSR skip_word ; "bags "
+			JSR skip_word ; "contain "
+			LDA #0
+			STA contents_idx
+		.contents_loop
+			LDA (ptr), Y
+			CMP #48
+			BCC no_more_contents
+			CMP #58
+			BCS no_more_contents
+			AND #15
+			LDX contents_idx
+			STA contents_offset, X ; quantity
+			INY
+			INY
+			JSR add_y_to_ptr
+			INC contents_idx
+			JSR find_word ; first adj.
+			LDX contents_idx
+			STA contents_offset, X ; quantity
+			INC contents_idx
+			JSR find_word ; second adj.
+			LDX contents_idx
+			STA contents_offset, X ; quantity
+			INC contents_idx
+			JSR skip_word ; "bag(s),."
+			JMP contents_loop
+		.no_more_contents
+			LDY #0
+		.write_rule
+			LDA current_rule, Y
+			STA (rules_ptr), Y
+			INY
+			CPY #16
+			BNE write_rule
+			LDA #0
+			STA (rules_ptr), Y
+			INY
+			STA (rules_ptr), Y
+			JSR tick
+
+		.advance_rules_ptr
+			CLC
+			LDA #16
+			ADC rules_ptr
+			STA rules_ptr
+			LDA #0
+			ADC rules_ptr + 1
+			STA rules_ptr + 1
+			RTS
+
+		.find_containers
+			JSR find_shiny_gold_bag
+			LDY #14
+			LDA #1 ; mark bag
+			STA (rules_ptr), Y
+		.find_more_containers
+			JSR reset_rules_ptr
+			LDA #0
+			STA more
+			LDA #255
+			STA part1_result
+			STA part1_result + 1 ; pre-emptively subtract shiny gold bag
+		.find_containers_loop
+			LDY #0
+			JSR is_slot_empty
+			BEQ find_containers_end
+			LDY #14
+			LDA (rules_ptr), Y ; is bag marked already
+			BEQ next_container
+			INC part1_result
+			BNE check_container_mark
+			INC part1_result + 1
+			BNE check_container_mark
+		.check_container_mark
+			CMP #1
+			BNE next_container
+			STA more
+			LDY #0
+			LDA (rules_ptr), Y
+			STA bag_to_find
+			INY
+			LDA (rules_ptr), Y
+			STA bag_to_find + 1
+			LDA rules_ptr
+			STA rules_ptr2
+			LDA rules_ptr + 1
+			STA rules_ptr2 + 1
+			JSR mark_bag_containers
+			LDA rules_ptr2
+			STA rules_ptr
+			LDA rules_ptr2 + 1
+			STA rules_ptr + 1
+			LDA #2
+			LDY #14
+			STA (rules_ptr), Y ; mark resolved
+		.next_container
+			JSR advance_rules_ptr
+			JMP find_containers_loop
+		.find_containers_end
+			LDA more
+			BNE find_more_containers
+			RTS
+
+		.mark_bag_containers
+			JSR tick
+			JSR reset_rules_ptr
+		.mark_bag_containers_loop
+			LDY #0
+			JSR is_slot_empty
+			BEQ mark_bag_containers_end
+			LDY #14
+			LDA (rules_ptr), Y ; is bag marked
+			BNE find_next_container
+			LDY #3
+			JSR is_it_this_bag
+			BEQ found_bag_containers
+			LDY #6
+			JSR is_it_this_bag
+			BEQ found_bag_containers
+			LDY #9
+			JSR is_it_this_bag
+			BEQ found_bag_containers
+			LDY #12
+			JSR is_it_this_bag
+			BEQ found_bag_containers
+		.find_next_container
+			JSR advance_rules_ptr
+			JMP mark_bag_containers_loop
+		.found_bag_containers
+			LDY #14
+			LDA #1 ; mark bag
+			STA (rules_ptr), Y
+			JMP find_next_container
+		.mark_bag_containers_end
+			RTS
+
+		.find_shiny_gold_bag
+			LDA #0 ; shiny
+			STA bag_to_find
+			LDA #1 ; gold
+			STA bag_to_find + 1
+
+		.find_bag
+			JSR reset_rules_ptr
+		.find_bag_loop
+			LDY #0
+			JSR is_slot_empty
+			BEQ find_bag_end
+			LDY #0
+			JSR is_it_this_bag
+			BEQ found_bag
+			JSR advance_rules_ptr
+			JMP find_bag_loop
+		.found_bag
+			LDA #1
+		.find_bag_end
+			RTS
+
+		.is_slot_empty
+			LDA (rules_ptr), Y
+			INY
+			ORA (rules_ptr), Y
+			RTS
+
+		.is_it_this_bag
+			LDA (rules_ptr), Y
+			CMP bag_to_find
+			BNE its_not_this_bag
+			INY
+			LDA (rules_ptr), Y
+			CMP bag_to_find + 1
+		.its_not_this_bag
+			RTS
+
+		.reset_markers
+			JSR reset_rules_ptr
+		.reset_markers_loop
+			LDY #0
+			JSR is_slot_empty
+			BNE reset_markers_next
+			RTS
+		.reset_markers_next
+			LDY #14
+			LDA #0
+			STA (rules_ptr), Y
+			INY
+			STA (rules_ptr), Y
+			JSR advance_rules_ptr
+			JMP reset_markers_loop
+
+		.get_total_bags
+			JSR find_shiny_gold_bag
+			LDY #14
+			LDA #1
+			STA (rules_ptr), Y
+			JSR find_contents
+			LDY #14
+			LDA #0
+			STA (rules_ptr), Y
+			JSR reset_rules_ptr
+		.get_total_bags_loop
+			LDY #0
+			JSR is_slot_empty
+			BNE get_total_bags_loop_next
+			RTS
+		.get_total_bags_loop_next
+			CLC
+			LDY #14
+			LDA (rules_ptr), Y
+			ADC part2_result
+			STA part2_result
+			INY
+			LDA (rules_ptr), Y
+			ADC part2_result + 1
+			STA part2_result + 1
+			JSR advance_rules_ptr
+			JMP get_total_bags_loop
+
+		.find_contents
+			JSR tick
+			LDY #2
+		.find_contents_loop
+			TYA
+			PHA
+			LDY #14
+			LDA (rules_ptr), Y
+			STA operand2
+			INY
+			LDA (rules_ptr), Y
+			STA operand2 + 1
+			LDA #0
+			STA operand1 + 1
+			STA operand1 + 2
+			STA operand1 + 3
+			STA operand2 + 2
+			STA operand2 + 3
+			PLA
+			TAY
+			LDA (rules_ptr), Y
+			STA operand1
+			INY
+			JSR is_slot_empty
+			BEQ find_contents_done
+			DEY
+			LDA (rules_ptr), Y
+			STA bag_to_find
+			INY
+			LDA (rules_ptr), Y
+			STA bag_to_find + 1
+			INY
+			TYA
+			PHA
+			LDA rules_ptr
+			PHA
+			LDA rules_ptr + 1
+			PHA ; rules_ptr and Y are now on the stack
+			JSR find_bag
+			CMP #0
+			BEQ skip_recursion
+			JSR multiply
+			CLC
+			LDY #15
+			LDA (rules_ptr), Y
+			PHA
+			DEY
+			LDA (rules_ptr), Y
+			PHA ; push current total to stack, to avoid double counting
+			LDA result
+			STA (rules_ptr), Y
+			INY
+			LDA result + 1
+			STA (rules_ptr), Y
+			JSR find_contents ; recursion, hope we don't break the 6502 stack
+			CLC
+			LDY #14
+			PLA
+			ADC (rules_ptr), Y
+			STA (rules_ptr), Y
+			INY
+			PLA
+			ADC (rules_ptr), Y
+			STA (rules_ptr), Y
+		.skip_recursion
+			PLA ; get rules_ptr and Y off the stack
+			STA rules_ptr + 1
+			PLA
+			STA rules_ptr
+			PLA
+			TAY
+			CPY #14
+			BNE find_contents_loop
+		.find_contents_done
+			RTS
+
+		.print_word
+			STY temp_y
+			LDX #words MOD 256
+			LDY #words DIV 256
+			STX ptr2
+			STY ptr2 + 1
+			LDY #0
+			TAX
+			BEQ display_word
+		.seek_word_loop
+			LDA (ptr2), Y
+			INY
+			CMP #32
+			BNE seek_word_loop
+			CLC
+			TYA
+			ADC ptr2
+			STA ptr2
+			LDA #0
+			ADC ptr2 + 1
+			STA ptr2 + 1
+			LDY #0
+			DEX
+			BNE seek_word_loop
+		.display_word
+			LDA (ptr2), Y
+			JSR OSWRCH
+			INY
+			CMP #32
+			BNE display_word
+			LDY temp_y
+			RTS
+		
+		.find_word
+			LDX #words MOD 256
+			LDY #words DIV 256
+			STX ptr2
+			STY ptr2 + 1
+			LDA #0
+			STA word_number
+		.find_word_loop1
+			LDY #0
+			LDA (ptr2), Y
+			BEQ add_word
+		.find_word_loop2
+			LDA (ptr2), Y
+			CMP (ptr), Y
+			BNE find_next_word
+			INY
+			CMP #32
+			BNE find_word_loop2
+		.found_word
+			JSR add_y_to_ptr
+			LDA word_number
+			RTS
+		.word_error
+			LDY #0
+		.word_error_loop
+			LDA (ptr), Y
+			INY
+			CMP #32
+			BNE word_error_loop
+			JSR add_y_to_ptr
+			LDA #255
+			STA word_number
+			RTS
+		.find_next_word
+			LDA (ptr2), Y
+			BEQ word_error
+			INY
+			CMP #32
+			BNE find_next_word
+			INC word_number
+			BMI word_error
+			CLC
+			TYA
+			ADC ptr2
+			STA ptr2
+			LDA #0
+			ADC ptr2 + 1
+			STA ptr2 + 1
+			JMP find_word_loop1
+		.add_word
+			LDA word_number
+			CMP #51
+			BCS word_error
+		.add_word_loop
+			LDA (ptr), Y
+			STA (ptr2), Y
+			INY
+			CMP #32
+			BNE add_word_loop
+			LDA #0
+			STA (ptr2), Y
+			JMP found_word
+
+		.skip_word
+			LDA (ptr), Y
+			INY
+			CMP #32
+			BNE skip_word
+
+		.add_y_to_ptr
+			CLC
+			TYA
+			ADC ptr
+			STA ptr
+			LDA #0
+			ADC ptr + 1
+			STA ptr + 1
+			LDY #0
+			RTS
+		
+		.tick
+			LDA #144
+			ORA tick_colour
+			JSR OSWRCH
+			LDX tick_counter
+			INX
+			CPX #6
+			BNE show_tick
+			LDX #0
+		.show_tick
+			STX tick_counter
+			LDA tick_blocks, X
+			JSR OSWRCH
+			LDA #13
+			JMP OSWRCH
+		.tick_blocks
+			EQUB &A1
+			EQUB &A2
+			EQUB &A8
+			EQUB &E0
+			EQUB &B0
+			EQUB &A4
+		.tick_colour
+			EQUB 7
+		.tick_counter
+			EQUB 0
+		.end
+	]
+NEXT
+PRINT;~P%
+END
+
+DEF PROCtest
+CALL test
+ENDPROC
+
+DEF PROCsave
+A%=0
+B%=&41C0000
+C%=start
+D%=run
+E%=start
+F%=end
+X%=10
+Y%=4
+$&41C="DAY" + DAY$
+CALL OSFILE
+ENDPROC

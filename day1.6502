@@ -403,7 +403,7 @@ FOR O%=0 TO 2 STEP 2
 		EQUD 0
 		EQUD 0
 		EQUD 0
-	
+
 	.read_ints
 		LDX #0
 
@@ -424,7 +424,7 @@ FOR O%=0 TO 2 STEP 2
 		STA input_buffer, X
 		INX
 		BNE read_int_loop
-	
+
 	.parse_int
 		LDA #0
 		STA operand1
@@ -449,7 +449,7 @@ FOR O%=0 TO 2 STEP 2
 		INX
 		LDA input_buffer, X
 		BNE parse_int_loop
-	
+
 	.store_int
 		LDY #0
 		LDA operand1
@@ -467,7 +467,7 @@ FOR O%=0 TO 2 STEP 2
 		STA ints_end + 1
 		BPL read_next_int
 		RTS ; if we get here, we are out of RAM
-	
+
 	.read_next_int
 		JMP read_ints
 
@@ -563,7 +563,7 @@ FOR O%=0 TO 2 STEP 2
 		ORA required_sum
 		CMP #0
 		BEQ skip_solve_call
-		
+
 		JSR solve
 
 	.skip_solve_call
@@ -589,7 +589,7 @@ FOR O%=0 TO 2 STEP 2
 		STA required_sum
 		PLA
 		STA how_many_ints_to_sum
-	
+
 		LDA result ; is result zero?
 		ORA result + 1
 		ORA result + 2
@@ -597,7 +597,7 @@ FOR O%=0 TO 2 STEP 2
 		CMP #0
 		BNE multiply_head_by_result
 		JMP solve
-	
+
 	.multiply_head_by_result
 		LDA result + 3
 		STA operand1 + 3
@@ -616,7 +616,7 @@ FOR O%=0 TO 2 STEP 2
 		LDA head
 		STA operand2
 		JMP multiply_32bit
-	
+
 	.run
 		LDA #ints MOD 256
 		STA head_pointer
@@ -624,7 +624,7 @@ FOR O%=0 TO 2 STEP 2
 		LDA #ints DIV 256
 		STA head_pointer + 1
 		STA ints_end + 1
-		
+
 		LDX #filename MOD 256
 		LDY #filename DIV 256
 		JSR open_file
@@ -632,7 +632,7 @@ FOR O%=0 TO 2 STEP 2
 		JSR read_ints
 
 		JSR close_file
-		
+
 		LDA #228
 		STA required_sum
 		LDA #7
@@ -649,7 +649,7 @@ FOR O%=0 TO 2 STEP 2
 		BRK
 		JSR print_decimal_result_32bit
 		JSR OSNEWL
-	
+
 		LDA #ints MOD 256
 		STA head_pointer
 		LDA #ints DIV 256

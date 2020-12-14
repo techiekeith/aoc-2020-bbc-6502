@@ -199,7 +199,7 @@ FOR N%=0 TO 2 STEP 2
 			LDY #part2_result DIV 256
 			JSR print_decimal
 			JMP OSNEWL
-		
+
 		.parse_record
 			LDX #buffer MOD 256
 			LDY #buffer DIV 256
@@ -251,7 +251,7 @@ FOR N%=0 TO 2 STEP 2
 			JMP parse_record_loop
 		.next_record
 			JMP calc_totals_for_record
-		
+
 		.calc_running_totals
 			LDX #0
 		.calc_running_totals_loop
@@ -266,14 +266,14 @@ FOR N%=0 TO 2 STEP 2
 			CPX #4
 			BNE calc_running_totals_loop
 			RTS
-		
+
 		.calc_totals_for_record
 			LDX #0
 			JSR calc_totals_for_part
 			LDX #4
 			JSR calc_totals_for_part
 			RTS
-		
+
 		.calc_totals_for_part
 			LDY #32
 		.calc_totals_for_part_loop

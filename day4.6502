@@ -232,7 +232,7 @@ FOR N%=0 TO 2 STEP 2
 			LDY #part2_result DIV 256
 			JSR print_decimal
 			JMP OSNEWL
-		
+
 		.parse_record
 			LDX #buffer MOD 256
 			LDY #buffer DIV 256
@@ -293,7 +293,7 @@ FOR N%=0 TO 2 STEP 2
 			BNE store_value_in_field
 		.store_field_end
 			RTS
-		
+
 		.get_ecl_number
 			LDA #eye_colors MOD 256
 			STA ptr2
@@ -342,7 +342,7 @@ FOR N%=0 TO 2 STEP 2
 			BNE compare_values
 			SEC
 			RTS
-		
+
 		.validate_record
 			LDX #0
 			TXA
@@ -421,7 +421,7 @@ FOR N%=0 TO 2 STEP 2
 			EQUW hcl_validator
 			EQUW ecl_validator
 			EQUW pid_validator
-		
+
 		.validation_failed
 			INC part2_validation_failures
 			JSR print_string ; DEBUG

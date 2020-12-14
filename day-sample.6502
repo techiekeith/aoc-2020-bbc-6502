@@ -118,7 +118,7 @@ FOR N%=0 TO 2 STEP 2
 			INC tick_colour
 			JSR do_part_2
 			JMP print_results
-		
+
 		.parse_line
 			JSR tick
 			NOP ; TODO do some stuff here
@@ -151,7 +151,7 @@ FOR N%=0 TO 2 STEP 2
 			EQUB 10
 			EQUB 0
 			RTS
-		
+
 		.buffer
 
 		.end

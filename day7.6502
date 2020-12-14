@@ -182,7 +182,7 @@ FOR N%=0 TO 2 STEP 2
 			LDY #part2_result DIV 256
 			JSR print_decimal
 			JMP OSNEWL
-		
+
 		.reset_rules_ptr
 			LDA #rules MOD 256
 			STA rules_ptr
@@ -534,7 +534,7 @@ FOR N%=0 TO 2 STEP 2
 			BNE display_word
 			LDY temp_y
 			RTS
-		
+
 		.find_word
 			LDX #words MOD 256
 			LDY #words DIV 256
@@ -614,7 +614,7 @@ FOR N%=0 TO 2 STEP 2
 			STA ptr + 1
 			LDY #0
 			RTS
-		
+
 		.tick
 			LDA #144
 			ORA tick_colour

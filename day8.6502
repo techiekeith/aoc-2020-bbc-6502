@@ -141,7 +141,7 @@ FOR N%=0 TO 2 STEP 2
 			INC tick_colour
 			JSR do_part_2
 			JMP print_results
-		
+
 		.do_part_1
 			JSR print_string
 			EQUS "Running program ..."
@@ -177,7 +177,7 @@ FOR N%=0 TO 2 STEP 2
 			LDY #jump_instruction_to_skip DIV 256
 			JSR print_decimal
 			PLA
-			JSR set_integer_width 
+			JSR set_integer_width
 			JSR print_string
 			EQUS " ..."
 			EQUB 0 ; DEBUG END
@@ -255,7 +255,7 @@ FOR N%=0 TO 2 STEP 2
 			ADC vm_ptr + 1
 			STA vm_ptr + 1
 			RTS
-		
+
 		.reset_program
 			LDX #vm MOD 256
 			LDY #vm DIV 256
@@ -396,14 +396,14 @@ FOR N%=0 TO 2 STEP 2
 			INC current_jump_instruction + 1
 			BNE jmp_instruction
 			BEQ jmp_instruction
-		
+
 		.set_number_to_one
 			LDA #1
 			STA number
 			LDA #0
 			STA number + 1
 			RTS
-		
+
 		.buffer
 
 		.end

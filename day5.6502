@@ -177,7 +177,7 @@ FOR N%=0 TO 2 STEP 2
 			LDA #0
 			LDY file_handle
 			JSR OSFIND
-		
+
 		.find_largest_seat_number
 			LDA #0
 			STA ptr
@@ -238,7 +238,7 @@ FOR N%=0 TO 2 STEP 2
 			LDY #part2_result DIV 256
 			JSR print_decimal
 			JMP OSNEWL
-		
+
 		.print_string_xy
 			STX string_xy_ptr
 			STY string_xy_ptr + 1

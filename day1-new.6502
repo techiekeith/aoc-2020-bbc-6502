@@ -86,9 +86,6 @@ FOR N%=0 TO 2 STEP 2
 		.head
 			EQUD 0
 			EQUD 0
-		.sum_result
-			EQUD 0
-			EQUD 0
 
 		.load_library
 			LDA #255

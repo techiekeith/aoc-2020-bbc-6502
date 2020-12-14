@@ -95,7 +95,7 @@ FOR N%=0 TO 2 STEP 2
 			LDY #part2_result DIV 256
 			JSR print_decimal
 			JMP OSNEWL
-		
+
 		.test
 			LDX #test_filename MOD 256
 			LDY #test_filename DIV 256

@@ -156,7 +156,7 @@ FOR N%=0 TO 2 STEP 2
 			LDA #0
 			LDY file_handle
 			JSR OSFIND
-		
+
 		.print_rows_and_columns
 			JSR print_string
 			EQUS "PTR: "
@@ -177,7 +177,7 @@ FOR N%=0 TO 2 STEP 2
 			LDY #columns DIV 256
 			JSR print_decimal
 			JSR OSNEWL
-		
+
 		.part1
 			LDX #3
 			LDY #1
@@ -202,7 +202,7 @@ FOR N%=0 TO 2 STEP 2
 			LDX #1
 			LDY #2
 			JSR toboggan_part2
-		
+
 		.print_results
 			JSR print_string
 			EQUS "Part 1: "
@@ -219,7 +219,7 @@ FOR N%=0 TO 2 STEP 2
 			LDY #part2_result DIV 256
 			JSR print_decimal
 			JMP OSNEWL
-		
+
 		.toboggan_part2
 			JSR toboggan
 			LDA part2_result
@@ -247,7 +247,7 @@ FOR N%=0 TO 2 STEP 2
 			LDA result + 3
 			STA part2_result + 3
 			RTS
-		
+
 		.toboggan
 			STX right
 			STY down

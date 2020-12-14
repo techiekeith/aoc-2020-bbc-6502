@@ -67,11 +67,11 @@ FOR N%=0 TO 2 STEP 2
             JMP print_string_at_pointer
         .tick_v
             JMP tick
+        .zero_operand_v
+            JMP zero_operand
+        .is_result_zero_or_negative_v
+            JMP is_result_zero_or_negative
         .reserved
-            RTS
-            EQUW 0
-            RTS
-            EQUW 0
             RTS
             EQUW 0
             RTS
@@ -287,6 +287,25 @@ FOR N%=0 TO 2 STEP 2
             CPY integer_width
             BNE copy_src_to_dest_loop
             RTS
+
+		.is_result_zero_or_negative
+			LDY integer_width
+			DEY
+			LDA result, Y
+			BMI zero_negative_end
+			PHP
+		.zero_negative_loop
+			PLP
+			ORA result, Y
+			PHP
+			DEY
+			BPL zero_negative_loop
+			PLA
+			AND #&7F
+			PHA
+			PLP
+		.zero_negative_end
+			RTS
 
         .add
             LDY #0

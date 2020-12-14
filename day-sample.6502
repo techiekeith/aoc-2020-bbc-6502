@@ -1,0 +1,178 @@
+HIMEM=&6800
+NEW
+AUTO
+REM Operating system variables
+
+OSFIND=&FFCE
+OSGBPB=&FFD1
+OSBPUT=&FFD4
+OSBGET=&FFD7
+OSARGS=&FFDA
+OSFILE=&FFDD
+OSRDCH=&FFE0
+OSASCI=&FFE3
+OSNEWL=&FFE7
+OSWRCH=&FFEE
+
+REM Library pointers
+
+lib_start=&7600
+set_integer_width=lib_start
+add=lib_start + 3
+subtract=lib_start + 6
+multiply=lib_start + 9
+divide=lib_start + 12
+print_string=lib_start + 15
+print_decimal=lib_start + 18
+print_hex=lib_start + 21
+print_hex_16bit=lib_start + 24
+print_hex_8bit=lib_start + 27
+copy_from_operand=lib_start + 30
+copy_to_operand=lib_start + 33
+open_file=lib_start + 36
+close_file=lib_start + 39
+read_line=lib_start + 42
+read_record=lib_start + 45
+parse_int=lib_start + 48
+init=lib_start + 51
+print_results=lib_start + 54
+print_string_at_pointer=lib_start + 57
+tick=lib_start + 60
+operand1=lib_start + &70
+dividend=operand1
+operand2=lib_start + &78
+divisor=operand2
+result=lib_start + &80
+quotient=result
+remainder=lib_start + &88
+part1_result=lib_start + &B0
+part2_result=lib_start + &B8
+tick_colour=lib_start + &D8
+
+vm=&6800
+start=&7000
+vm_ptr=&86
+ptr=&88
+
+day=0
+DAY$=STR$(day)
+IF LEN(DAY$) = 1 DAY$ = "0" + DAY$
+
+FOR N%=0 TO 2 STEP 2
+	P%=start
+	[
+		OPT N%
+		.lib_filename
+			EQUS "L.AOCLIB"
+			EQUB 13
+		.lib_osfile_block
+			EQUW lib_filename
+			EQUD lib_start
+			EQUD 0
+			EQUD 0
+			EQUD 0
+
+		.load_library
+			LDA #255
+			LDX #lib_osfile_block MOD 256
+			LDY #lib_osfile_block DIV 256
+			JSR OSFILE
+			LDA #4 ; 32-bit integers
+			JMP init
+
+		.test
+			JSR load_library
+			SEC
+			BCS skipload
+		.run
+			JSR load_library
+			CLC
+		.skipload
+			LDA #day
+			JSR open_file
+			LDA #1
+			STA tick_colour
+			JSR print_string
+			EQUS "Loading data ..."
+			EQUB 0
+
+		.read_file
+			JSR tick
+			LDX #buffer MOD 256
+			LDY #buffer DIV 256
+			JSR read_line
+			BCS done
+			JSR parse_line
+			JMP read_file
+
+		.done
+			JSR print_string
+			EQUB 130
+			EQUS "done."
+			EQUB 13
+			EQUB 10
+			EQUB 0
+			JSR close_file
+			INC tick_colour
+			JSR do_part_1
+			INC tick_colour
+			JSR do_part_2
+			JMP print_results
+		
+		.parse_line
+			JSR tick
+			NOP ; TODO do some stuff here
+			RTS
+
+		.do_part_1
+			JSR print_string
+			EQUS "Doing part 1 ..."
+			EQUB 0
+			JSR tick
+			NOP ; TODO do some stuff here
+			JSR print_string
+			EQUB 130
+			EQUS "done!"
+			EQUB 13
+			EQUB 10
+			EQUB 0
+			RTS
+
+		.do_part_2
+			JSR print_string
+			EQUS "Doing part 2 ..."
+			EQUB 0
+			JSR tick
+			NOP ; TODO do some stuff here
+			JSR print_string
+			EQUB 130
+			EQUS "done!"
+			EQUB 13
+			EQUB 10
+			EQUB 0
+			RTS
+		
+		.buffer
+
+		.end
+	]
+NEXT
+PRINT;~P%
+END
+
+DEF PROCtest
+CALL test
+ENDPROC
+
+DEF PROCsave
+A%=0
+B%=&41C0000
+C%=start
+D%=run
+E%=start
+F%=end
+X%=10
+Y%=4
+$&41C="DAY" + DAY$
+CALL OSFILE
+ENDPROC

@@ -1,0 +1,429 @@
+HIMEM=&5000
+NEW
+AUTO
+REM Operating system variables
+
+OSFIND=&FFCE
+OSGBPB=&FFD1
+OSBPUT=&FFD4
+OSBGET=&FFD7
+OSARGS=&FFDA
+OSFILE=&FFDD
+OSRDCH=&FFE0
+OSASCI=&FFE3
+OSNEWL=&FFE7
+OSWRCH=&FFEE
+
+REM Library pointers
+
+lib_start=&7600
+set_integer_width=lib_start
+add=lib_start + 3
+subtract=lib_start + 6
+multiply=lib_start + 9
+divide=lib_start + 12
+print_string=lib_start + 15
+print_decimal=lib_start + 18
+print_hex=lib_start + 21
+print_hex_16bit=lib_start + 24
+print_hex_8bit=lib_start + 27
+copy_from_operand=lib_start + 30
+copy_to_operand=lib_start + 33
+open_file=lib_start + 36
+close_file=lib_start + 39
+read_line=lib_start + 42
+read_record=lib_start + 45
+parse_int=lib_start + 48
+init=lib_start + 51
+print_results=lib_start + 54
+print_string_at_pointer=lib_start + 57
+tick=lib_start + 60
+zero_operand=lib_start + 63
+is_result_zero_or_negative=lib_start + 66
+operand1=lib_start + &70
+dividend=operand1
+operand2=lib_start + &78
+divisor=operand2
+result=lib_start + &80
+quotient=result
+remainder=lib_start + &88
+part1_result=lib_start + &B0
+part2_result=lib_start + &B8
+integer_width=lib_start + &D7
+tick_colour=lib_start + &D8
+
+numbers=&5000
+start=&7000
+ptr=&88
+
+day=1
+DAY$=STR$(day)
+IF LEN(DAY$) = 1 DAY$ = "0" + DAY$
+
+FOR N%=0 TO 2 STEP 2
+	P%=start
+	[
+		OPT N%
+		.lib_filename
+			EQUS "L.AOCLIB"
+			EQUB 13
+		.lib_osfile_block
+			EQUW lib_filename
+			EQUD lib_start
+			EQUD 0
+			EQUD 0
+			EQUD 0
+
+		.how_many_ints_to_sum
+			EQUB 0
+		.head_pointer
+			EQUW 0
+		.ints_end
+			EQUW 0
+		.required_sum
+			EQUD 0
+			EQUD 0
+		.head
+			EQUD 0
+			EQUD 0
+		.sum_result
+			EQUD 0
+			EQUD 0
+
+		.load_library
+			LDA #255
+			LDX #lib_osfile_block MOD 256
+			LDY #lib_osfile_block DIV 256
+			JSR OSFILE
+			LDA #4 ; 32-bit integers
+			JMP init
+
+		.init_head_pointer
+			LDX #numbers MOD 256
+			LDY #numbers DIV 256
+			STX ints_end
+			STY ints_end + 1
+
+		.reset_head_pointer
+			LDX #numbers MOD 256
+			LDY #numbers DIV 256
+			STX head_pointer
+			STY head_pointer + 1
+			RTS
+		
+		.test
+			JSR load_library
+			SEC
+			BCS skipload
+		.run
+			JSR load_library
+			CLC
+		.skipload
+			LDA #day
+			JSR open_file
+			LDA #1
+			STA tick_colour
+			JSR print_string
+			EQUS "Loading data ..."
+			EQUB 0
+
+			JSR init_head_pointer
+
+		.read_file
+			JSR tick
+			LDX #buffer MOD 256
+			LDY #buffer DIV 256
+			JSR read_line
+			BCS done
+			LDX #buffer MOD 256
+			LDY #buffer DIV 256
+			JSR parse_line
+			JMP read_file
+
+		.done
+			JSR print_string
+			EQUB 130
+			EQUS "done."
+			EQUB 13
+			EQUB 10
+			EQUB 0
+			JSR close_file
+			INC tick_colour
+			JSR do_part_1
+			INC tick_colour
+			JSR do_part_2
+			JMP print_results
+		
+		.parse_line
+			JSR tick
+			LDX #buffer MOD 256
+			LDY #buffer DIV 256
+			JSR parse_int
+			LDA #2 ; result
+			LDX ints_end
+			LDY ints_end + 1
+			JSR copy_from_operand
+			CLC
+			LDA #8
+			ADC ints_end
+			STA ints_end
+			BNE done_parsing
+			INC ints_end + 1
+		.done_parsing
+			RTS
+
+		.do_part_1
+			JSR print_string
+			EQUS "Doing part 1 ..."
+			EQUB 0
+			JSR tick
+			LDA #2 ; how many ints to sum
+			JSR day1_solution
+			LDA #8 ; part1_result
+			LDX #result MOD 256
+			LDY #result DIV 256
+			JSR copy_to_operand
+			JSR print_string
+			EQUB 130
+			EQUS "done!"
+			EQUB 13
+			EQUB 10
+			EQUB 0
+			RTS
+
+		.do_part_2
+			JSR print_string
+			EQUS "Doing part 2 ..."
+			EQUB 0
+			JSR tick
+			LDA #3 ; how many ints to sum
+			JSR day1_solution
+			LDA #9 ; part2_result
+			LDX #result MOD 256
+			LDY #result DIV 256
+			JSR copy_to_operand
+			JSR print_string
+			EQUB 130
+			EQUS "done!"
+			EQUB 13
+			EQUB 10
+			EQUB 0
+			RTS
+
+		.day1_solution
+			STA how_many_ints_to_sum
+			JSR reset_head_pointer
+			LDA #0 ; operand1
+			JSR zero_operand
+			LDX #2020 MOD 256
+			LDY #2020 DIV 256
+			STX operand1
+			STY operand1 + 1
+			LDA #0
+			LDX #required_sum MOD 256
+			LDY #required_sum DIV 256
+			JSR copy_from_operand
+
+		.find_numbers_with_sum
+			LDA #2; result
+			JSR zero_operand
+			LDA how_many_ints_to_sum
+			CMP #0
+			BEQ find_exit
+			LDA head_pointer
+			CMP ints_end
+			BNE load_head
+			LDA head_pointer + 1
+			CMP ints_end + 1
+			BNE load_head
+		.find_exit
+			JSR print_string
+			EQUS "Branch ended."
+			EQUB 13
+			EQUB 10
+			EQUB 0
+			RTS
+		.load_head
+			LDA #0 ; operand1
+			LDX #required_sum MOD 256
+			LDY #required_sum DIV 256
+			JSR copy_to_operand
+			LDA #1 ; operand2
+			LDX head_pointer
+			LDY head_pointer + 1
+			JSR copy_to_operand
+			LDA #1 ; operand2
+			LDX #head MOD 256
+			LDY #head DIV 256
+			JSR copy_from_operand
+			CLC
+			LDA #8
+			ADC head_pointer
+			STA head_pointer
+			LDA #0
+			ADC head_pointer + 1
+			STA head_pointer + 1
+
+			JSR debug_stuff
+
+			LDA how_many_ints_to_sum
+			CMP #1
+			BNE find_more_than_one_int
+
+			JSR subtract
+			JSR is_result_zero_or_negative
+			BNE find_numbers_with_sum
+			JSR print_string
+			EQUS "Result found."
+			EQUB 13
+			EQUB 10
+			EQUB 0
+			LDA #0 ; operand1
+			LDX #result MOD 256
+			LDY #result DIV 256
+			JMP copy_from_operand
+		
+		.debug_stuff
+			JSR print_string
+			EQUS "Ints / Reqd / Head: "
+			EQUB 0
+			LDA how_many_ints_to_sum
+			JSR print_hex_8bit
+			JSR print_string
+			EQUS " / "
+			EQUB 0
+			LDX #operand1 MOD 256
+			LDY #operand1 DIV 256
+			JSR print_hex
+			JSR print_string
+			EQUS " / "
+			EQUB 0
+			LDX #operand2 MOD 256
+			LDY #operand2 DIV 256
+			JSR print_hex
+			JMP OSNEWL
+
+		.debug_sp
+			JSR print_string
+			EQUS "SP: "
+			EQUB 0
+			TSX
+			TXA
+			JSR print_hex_8bit
+			JMP OSNEWL
+
+		.skip_recursion_clear_result_first
+			LDA #2
+			JSR zero_operand
+			JMP skip_recursion
+
+		.find_more_than_one_int
+			LDA how_many_ints_to_sum
+			PHA
+			LDA head_pointer
+			PHA
+			LDA head_pointer + 1
+			PHA
+			LDX #0
+		.push_loop
+			LDA required_sum, X
+			PHA
+			LDA head, X
+			PHA
+			INX
+			CPX #8
+			BNE push_loop
+
+			JSR debug_sp
+
+			DEC how_many_ints_to_sum
+			JSR subtract
+			JSR is_result_zero_or_negative
+			BEQ skip_recursion
+			BMI skip_recursion_clear_result_first
+			LDA #2 ; result
+			LDX #required_sum MOD 256
+			LDY #required_sum DIV 256
+			JSR copy_from_operand
+
+			JSR print_string ; DEBUG START
+			EQUS "Next Ints / Required sum: "
+			EQUB 0
+			LDA how_many_ints_to_sum
+			JSR print_hex_8bit
+			JSR print_string
+			EQUS " / "
+			EQUB 0
+			LDX #required_sum MOD 256
+			LDY #required_sum DIV 256
+			JSR print_hex
+			JSR OSNEWL ; DEBUG END
+
+			JSR find_numbers_with_sum
+
+		.skip_recursion
+			LDX #8
+		.pull_loop
+			DEX
+			PLA
+			STA head, X
+			PLA
+			STA required_sum, X
+			CPX #0
+			BNE pull_loop
+			PLA
+			STA head_pointer + 1
+			PLA
+			STA head_pointer
+			PLA
+			STA how_many_ints_to_sum
+
+			JSR is_result_zero_or_negative
+			BNE multiply_head_by_result
+			JMP find_numbers_with_sum
+
+		.multiply_head_by_result
+			JSR debug_stuff
+			JSR print_string
+			EQUS "Result found."
+			EQUB 13
+			EQUB 10
+			EQUB 0
+			LDA #0 ; operand1
+			LDX #result MOD 256
+			LDY #result DIV 256
+			JSR copy_to_operand
+			LDA #1 ; operand2
+			LDX #head MOD 256
+			LDY #head DIV 256
+			JSR copy_to_operand
+			JSR multiply
+			LDA #2 ; result
+			LDX #result MOD 256
+			LDY #result DIV 256
+			JMP copy_from_operand
+
+		.buffer
+
+		.end
+	]
+NEXT
+PRINT;~P%
+END
+
+DEF PROCtest
+CALL test
+ENDPROC
+
+DEF PROCsave
+A%=0
+B%=&41C0000
+C%=start
+D%=run
+E%=start
+F%=end
+X%=10
+Y%=4
+$&41C="DAY" + DAY$
+CALL OSFILE
+ENDPROC

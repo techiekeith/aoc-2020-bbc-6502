@@ -29,6 +29,12 @@ This loads the library into memory at location &7600.
 
 Locations &8A-&8F are used by various functions. Do not store anything in these locations that you want to keep.
 
+### Main RAM area
+
+Locations &7500-75FF are used as a buffer for reading files.
+
+Locations &7600-7BFF are reserved for the library.
+
 ### Function calls
 
 - &7600 - Set Integer Width (A contains the number of bytes per integer, 1 <= A <= 8)

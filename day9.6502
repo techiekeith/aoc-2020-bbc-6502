@@ -1,0 +1,601 @@
+HIMEM=&5000
+NEW
+AUTO
+REM Operating system variables
+
+OSFIND=&FFCE
+OSGBPB=&FFD1
+OSBPUT=&FFD4
+OSBGET=&FFD7
+OSARGS=&FFDA
+OSFILE=&FFDD
+OSRDCH=&FFE0
+OSASCI=&FFE3
+OSNEWL=&FFE7
+OSWRCH=&FFEE
+
+REM Library pointers
+
+lib_start=&7600
+set_integer_width=lib_start
+add=lib_start + 3
+subtract=lib_start + 6
+multiply=lib_start + 9
+divide=lib_start + 12
+print_string=lib_start + 15
+print_decimal=lib_start + 18
+print_hex=lib_start + 21
+print_hex_16bit=lib_start + 24
+print_hex_8bit=lib_start + 27
+copy_from_operand=lib_start + 30
+copy_to_operand=lib_start + 33
+open_file=lib_start + 36
+close_file=lib_start + 39
+read_line=lib_start + 42
+read_record=lib_start + 45
+parse_int=lib_start + 48
+init=lib_start + 51
+print_results=lib_start + 54
+print_string_at_ptr=lib_start + 57
+tick=lib_start + 60
+zero_operand=lib_start + 63
+is_result_zero_or_negative=lib_start + 66
+operand1=lib_start + &70
+dividend=operand1
+operand2=lib_start + &78
+divisor=operand2
+result=lib_start + &80
+quotient=result
+remainder=lib_start + &88
+part1_result=lib_start + &B0
+part2_result=lib_start + &B8
+integer_width=lib_start + &D7
+tick_colour=lib_start + &D8
+
+numbers=&5000
+start=&7000
+ptr=&88
+index_ptr=&86
+
+day=9
+DAY$=STR$(day)
+IF LEN(DAY$) = 1 DAY$ = "0" + DAY$
+
+FOR N%=0 TO 2 STEP 2
+	P%=start
+	[
+		OPT N%
+		.lib_filename
+			EQUS "L.AOCLIB"
+			EQUB 13
+		.lib_osfile_block
+			EQUW lib_filename
+			EQUD lib_start
+			EQUD 0
+			EQUD 0
+			EQUD 0
+
+		.how_many_ints_to_sum
+			EQUB 0
+		.preamble_count
+			EQUB 0
+		.head_ptr
+			EQUW 0
+		.array_ptr
+			EQUW 0
+		.end_ptr
+			EQUW 0
+		.ints_end
+			EQUW 0
+		.required_sum
+			EQUD 0
+			EQUD 0
+		.head
+			EQUD 0
+			EQUD 0
+
+		.load_library
+			LDA #255
+			LDX #lib_osfile_block MOD 256
+			LDY #lib_osfile_block DIV 256
+			JSR OSFILE
+			LDA #8 ; 64-bit integers
+			JMP init
+
+		.init_ints
+			LDX #numbers MOD 256
+			LDY #numbers DIV 256
+			STX ints_end
+			STY ints_end + 1
+			RTS
+
+		.test
+			LDA #5
+			STA preamble_count
+			JSR load_library
+			SEC
+			BCS skipload
+		.run
+			LDA #25
+			STA preamble_count
+			JSR load_library
+			CLC
+		.skipload
+			LDA #day
+			JSR open_file
+			LDA #1
+			STA tick_colour
+			JSR print_string
+			EQUS "Loading data ..."
+			EQUB 0
+
+			JSR init_ints
+
+		.read_file
+			JSR tick
+			LDX #buffer MOD 256
+			LDY #buffer DIV 256
+			JSR read_line
+			BCS done
+			LDX #buffer MOD 256
+			LDY #buffer DIV 256
+			JSR parse_line
+			JMP read_file
+
+		.parse_line
+			JSR tick
+			LDX #buffer MOD 256
+			LDY #buffer DIV 256
+			JSR parse_int
+			LDA #2 ; result
+			LDX ints_end
+			LDY ints_end + 1
+			JSR copy_from_operand
+			CLC
+			LDA integer_width
+			ADC ints_end
+			STA ints_end
+			BNE done_parsing
+			INC ints_end + 1
+		.done_parsing
+			RTS
+
+		.done
+			JSR print_string
+			EQUB 130
+			EQUS "done."
+			EQUB 13
+			EQUB 10
+			EQUB 0
+			JSR close_file
+			INC tick_colour
+			JSR do_part_1
+			INC tick_colour
+			JSR do_part_2
+			JMP print_results
+
+		.do_part_1
+			JSR print_string
+			EQUS "Doing part 1 ..."
+			EQUB 0
+			JSR tick
+
+			NOP ; for (int index = preambleCount ...
+			LDA #0
+			JSR zero_operand
+			LDA #1
+			JSR zero_operand
+			LDA preamble_count
+			STA operand1
+			LDA integer_width
+			STA operand2
+			JSR multiply
+			CLC
+			LDA result
+			ADC #numbers MOD 256
+			STA index_ptr
+			LDA result + 1
+			ADC #numbers DIV 256
+			STA index_ptr + 1
+			LDA #numbers MOD 256
+			STA array_ptr
+			LDA #numbers DIV 256
+			STA array_ptr + 1
+
+			NOP ; ...) {
+		.for_loop
+			JSR tick
+
+			NOP ; var arrayToTest = ints.Skip(index - preambleCount).Take(preambleCount).ToArray();
+			LDA array_ptr
+			STA head_ptr
+			LDA array_ptr + 1
+			STA head_ptr + 1
+			LDA index_ptr
+			STA end_ptr
+			LDA index_ptr + 1
+			STA end_ptr + 1
+
+			NOP ; var valueToTest = ints[index];
+			LDX index_ptr
+			LDY index_ptr + 1
+			LDA #0 ; operand1
+			JSR copy_to_operand
+
+			NOP ; var result = FindNumbersWithSum.Find(arrayToTest, 2, valueToTest);
+			LDX #required_sum MOD 256
+			LDY #required_sum DIV 256
+			LDA #0 ; operand1
+			JSR copy_from_operand
+			LDA #2
+			STA how_many_ints_to_sum
+			JSR find_numbers_with_sum
+
+			NOP ; if (result == 0) return valueToTest;
+			JSR is_result_zero_or_negative
+			BEQ found_part_1_result
+
+			NOP ; ... index++ ...
+			JSR increment_index_ptr
+			JSR increment_array_ptr
+
+			NOP ; ... index < ints.Length ...) {
+			NOP ; }
+		.check_index_ptr
+			LDA index_ptr + 1
+			CMP ints_end + 1
+			BNE for_loop
+			LDA index_ptr
+			CMP ints_end
+			BNE for_loop
+
+			NOP ; Console.Error.WriteLine("All numbers conform to the rule.");
+			JSR print_string
+			EQUB 129
+			EQUS "not found."
+			EQUB 13
+			EQUB 10
+			EQUB 0
+
+			NOP ; return -1;
+			LDA #255
+			LDX integer_width
+		.minus_one_part_1_result
+			DEX
+			STA part1_result, X
+			CPX #0
+			BNE minus_one_part_1_result
+			RTS
+
+		.found_part_1_result
+			LDX index_ptr
+			LDY index_ptr + 1
+			LDA #8 ; part1_result
+			JSR copy_to_operand
+			JSR print_string
+			EQUB 130
+			EQUS "done!"
+			EQUB 13
+			EQUB 10
+			EQUB 0
+			RTS
+
+		.increment_index_ptr
+			CLC
+			LDA integer_width
+			ADC index_ptr
+			STA index_ptr
+			BNE skip_inc_index_plus_one
+			INC index_ptr + 1
+		.skip_inc_index_plus_one
+			RTS
+
+		.increment_array_ptr
+			CLC
+			LDA integer_width
+			ADC array_ptr
+			STA array_ptr
+			BNE skip_inc_array_plus_one
+			INC array_ptr + 1
+		.skip_inc_array_plus_one
+			RTS
+
+		.do_part_2
+			JSR print_string
+			EQUS "Doing part 2 ..."
+			EQUB 0
+			JSR tick
+
+			LDA #numbers MOD 256
+			STA array_ptr
+			LDA #numbers DIV 256
+			STA array_ptr + 1 ; find consecutive ints that sum to part1_result
+
+		.part_2_outer_loop
+			LDA array_ptr
+			STA index_ptr
+			LDA array_ptr + 1
+			STA index_ptr + 1
+			LDA #0 ; operand 1 - running total
+			JSR zero_operand
+
+		.part_2_inner_loop
+			JSR tick
+			LDX index_ptr
+			LDY index_ptr + 1
+			LDA #1 ; operand 2 - current array element
+			JSR copy_to_operand
+			JSR add ; sum all values between array_ptr and index_ptr
+
+			LDX #result MOD 256
+			LDY #result DIV 256
+			LDA #0 ; operand 1
+			JSR copy_to_operand
+			LDX #part1_result MOD 256
+			LDY #part1_result DIV 256 ; invalid number in part1_result
+			LDA #1 ; operand 2
+			JSR copy_to_operand
+
+			JSR subtract ; compare running total with part1_result
+
+			JSR is_result_zero_or_negative
+			BEQ get_max_and_min ; found array, now find solution
+			BPL next_array_ptr ; sum is too large, start again at next array element
+			JSR increment_index_ptr
+			LDA index_ptr
+			CMP ints_end
+			BNE part_2_inner_loop
+			LDA index_ptr + 1
+			CMP ints_end + 1
+			BNE part_2_inner_loop
+			
+		.next_array_ptr
+			JSR increment_array_ptr
+			LDA array_ptr
+			CMP ints_end
+			BNE part_2_outer_loop
+			LDA array_ptr + 1
+			CMP ints_end + 1
+			BNE part_2_outer_loop
+			JSR print_string
+			EQUB 129
+			EQUS "not found."
+			EQUB 13
+			EQUB 10
+			EQUB 0
+			LDA #255
+		.minus_one_part_2_result
+			DEX
+			STA part2_result, X
+			CPX #0
+			BNE minus_one_part_2_result
+			RTS
+
+		.get_max_and_min
+			LDA #5
+			STA tick_colour
+			JSR increment_index_ptr
+			LDA index_ptr
+			STA ints_end
+			LDA index_ptr + 1
+			STA ints_end + 1 ; set end of array
+						
+			LDA #0 ; operand1 = max
+			LDX array_ptr
+			LDY array_ptr + 1
+			JSR copy_to_operand
+			LDA #1 ; operand2 = min
+			LDX array_ptr
+			LDY array_ptr + 1
+			JSR copy_to_operand
+			LDA array_ptr
+			STA index_ptr
+			LDA array_ptr + 1
+			STA index_ptr + 1
+
+		.minmax_loop
+			JSR tick
+			LDY integer_width
+		.max_inner_loop
+			DEY
+			LDA (index_ptr), Y
+			CMP operand1, Y
+			BCC is_not_max
+			BEQ maybe_max
+			BCS is_max
+		.maybe_max
+			CPY #0
+			BNE max_inner_loop
+			JMP next_minmax
+
+		.is_max
+			LDA #0 ; operand 1
+			LDX index_ptr
+			LDY index_ptr + 1
+			JSR copy_to_operand
+			JMP next_minmax
+
+		.is_not_max
+			LDY integer_width
+		.min_inner_loop
+			DEY
+			LDA operand2, Y
+			CMP (index_ptr), Y
+			BCC next_minmax
+			BEQ maybe_min
+			BCS is_min
+		.maybe_min
+			CPY #0
+			BNE min_inner_loop
+			JMP next_minmax
+
+		.is_min
+			LDA #1 ; operand 2
+			LDX index_ptr
+			LDY index_ptr + 1
+			JSR copy_to_operand
+
+		.next_minmax
+			JSR increment_index_ptr
+			LDA index_ptr + 1
+			CMP ints_end + 1
+			BNE minmax_loop
+			LDA index_ptr
+			CMP ints_end
+			BNE minmax_loop
+
+		.found_part_2_result
+			JSR add
+			LDA #9 ; part2_result
+			LDX #result MOD 256
+			LDY #result DIV 256
+			JSR copy_to_operand
+			JSR print_string
+			EQUB 130
+			EQUS "done!"
+			EQUB 13
+			EQUB 10
+			EQUB 0
+			RTS
+
+		.find_numbers_with_sum
+			LDA #2; result
+			JSR zero_operand
+			LDA how_many_ints_to_sum
+			CMP #0
+			BEQ find_exit
+			LDA head_ptr
+			CMP end_ptr
+			BNE load_head
+			LDA head_ptr + 1
+			CMP end_ptr + 1
+			BNE load_head
+		.find_exit
+			RTS
+		.load_head
+			LDA #0 ; operand1
+			LDX #required_sum MOD 256
+			LDY #required_sum DIV 256
+			JSR copy_to_operand
+			LDA #1 ; operand2
+			LDX head_ptr
+			LDY head_ptr + 1
+			JSR copy_to_operand
+			LDA #1 ; operand2
+			LDX #head MOD 256
+			LDY #head DIV 256
+			JSR copy_from_operand
+			CLC
+			LDA integer_width
+			ADC head_ptr
+			STA head_ptr
+			LDA #0
+			ADC head_ptr + 1
+			STA head_ptr + 1
+
+			LDA how_many_ints_to_sum
+			CMP #1
+			BNE find_more_than_one_int
+
+			JSR subtract
+			JSR is_result_zero_or_negative
+			BNE find_numbers_with_sum
+			LDA #0 ; operand1
+			LDX #result MOD 256
+			LDY #result DIV 256
+			JMP copy_from_operand
+
+		.skip_recursion_clear_result_first
+			LDA #2
+			JSR zero_operand
+			JMP skip_recursion
+
+		.find_more_than_one_int
+			LDA how_many_ints_to_sum
+			PHA
+			LDA head_ptr
+			PHA
+			LDA head_ptr + 1
+			PHA
+			LDX #0
+		.push_loop
+			LDA required_sum, X
+			PHA
+			LDA head, X
+			PHA
+			INX
+			CPX integer_width
+			BNE push_loop
+
+			DEC how_many_ints_to_sum
+			JSR subtract
+			JSR is_result_zero_or_negative
+			BEQ skip_recursion
+			BMI skip_recursion_clear_result_first
+			LDA #2 ; result
+			LDX #required_sum MOD 256
+			LDY #required_sum DIV 256
+			JSR copy_from_operand
+
+			JSR find_numbers_with_sum
+
+		.skip_recursion
+			LDX integer_width
+		.pull_loop
+			DEX
+			PLA
+			STA head, X
+			PLA
+			STA required_sum, X
+			CPX #0
+			BNE pull_loop
+			PLA
+			STA head_ptr + 1
+			PLA
+			STA head_ptr
+			PLA
+			STA how_many_ints_to_sum
+
+			JSR is_result_zero_or_negative
+			BNE multiply_head_by_result
+			JMP find_numbers_with_sum
+
+		.multiply_head_by_result
+			LDA #0 ; operand1
+			LDX #result MOD 256
+			LDY #result DIV 256
+			JSR copy_to_operand
+			LDA #1 ; operand2
+			LDX #head MOD 256
+			LDY #head DIV 256
+			JSR copy_to_operand
+			JSR multiply
+			LDA #2 ; result
+			LDX #result MOD 256
+			LDY #result DIV 256
+			JMP copy_from_operand
+
+		.buffer
+
+		.end
+	]
+NEXT
+PRINT;~P%
+END
+
+DEF PROCtest
+CALL test
+ENDPROC
+
+DEF PROCsave
+A%=0
+B%=&41C0000
+C%=start
+D%=run
+E%=start
+F%=end
+X%=10
+Y%=4
+$&41C="DAY" + DAY$
+CALL OSFILE
+ENDPROC

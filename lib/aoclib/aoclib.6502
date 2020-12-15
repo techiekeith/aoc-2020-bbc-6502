@@ -1,4 +1,4 @@
-HIMEM=&7600
+HIMEM=&7500
 NEW
 AUTO
 REM Operating system variables
@@ -15,6 +15,7 @@ OSNEWL=&FFE7
 OSWRCH=&FFEE
 OSWORD=&FFF1
 
+file_buffer=&7500
 start=&7600
 ptr=&8A
 src=&8C
@@ -181,11 +182,29 @@ FOR N%=0 TO 2 STEP 2
 			EQUS "X.DAY00"
 			EQUB 13
 
+		.osgbpb_block
+			EQUB 0
+		.block_copy_dst
+			EQUD 0
+		.bytes_to_transfer
+			EQUD 0
+		.sequential_pointer
+			EQUD 0
+		.block_copy
+			EQUD file_buffer ; destination pointer
+			EQUD 256 ; number of bytes to transfer
+		.eof
+			EQUB 0
+		.bytes_read
+			EQUB 0
+		.file_buffer_ptr
+			EQUB 0
+
 		.set_integer_width
 			CMP #0
-			BEQ invalid_integer_width
+			BEQ err_too_small
 			CMP #9
-			BCS invalid_integer_width
+			BCS err_too_big
 			STA temp_number
 			LDA integer_width
 			PHA
@@ -193,25 +212,29 @@ FOR N%=0 TO 2 STEP 2
 			STA integer_width
 			PLA
 			RTS
-		.invalid_integer_width
+
+		.err_too_big
 			BRK
 			EQUB 255
-			EQUS "integer_width must be between 1 and 8"
+			EQUS "Too big"
+			BRK
+
+		.err_too_small
+			BRK
+			EQUB 255
+			EQUS "Too small"
 			BRK
 
 		.print_string
 			PLA
-			STA src
+			TAX
 			PLA
-			STA src + 1
-			LDY #1
-		.print_string_loop
-			LDA (src), Y
-			BEQ print_string_return
-			JSR OSWRCH
+			TAY
+			INX
+			BNE print_string_call
 			INY
-			BNE print_string_loop
-		.print_string_return
+		.print_string_call
+			JSR print_string_at_pointer
 			CLC
 			TYA
 			ADC src
@@ -227,12 +250,13 @@ FOR N%=0 TO 2 STEP 2
 			STX src
 			STY src + 1
 			LDY #0
-		.print_string_loop_2
+		.print_string_loop
 			LDA (src), Y
 			BEQ print_string_end
 			JSR OSWRCH
 			INY
-			BNE print_string_loop_2
+			BNE print_string_loop
+			BEQ err_too_big
 		.print_string_end
 			RTS
 
@@ -608,12 +632,56 @@ FOR N%=0 TO 2 STEP 2
 			LDY #input_filename DIV 256
 			JSR OSFIND
 			STA file_handle
+			STA osgbpb_block
+			LDA #0
+			STA file_buffer_ptr
+			STA bytes_read
+			STA eof
 			RTS
 
 		.close_file
 			LDA #0
 			LDY file_handle
 			JMP OSFIND
+
+		.read_block
+			LDX #0
+		.block_copy_loop
+			LDA block_copy, X
+			STA block_copy_dst, X
+			INX
+			CPX #8
+			BNE block_copy_loop
+			LDA #3 ; get bytes
+			LDX #osgbpb_block MOD 256
+			LDY #osgbpb_block DIV 256
+			JSR OSGBPB
+			BCC read_complete
+			ROL eof
+			LDA bytes_to_transfer + 1
+			CMP #1
+			BEQ read_complete
+			EOR #255
+			ADC #0
+			STA bytes_read
+		.read_complete
+			RTS
+
+		.read_byte
+			LDY file_buffer_ptr
+			CPY bytes_read
+			BNE read_byte_from_buffer
+			LSR eof
+			BCS done_reading_byte
+			JSR read_block
+			BCS done_reading_byte
+			LDY file_buffer_ptr
+		.read_byte_from_buffer
+			LDA file_buffer, Y
+			INY
+			STY file_buffer_ptr
+		.done_reading_byte
+			RTS
 
 		.read_line
 			STX ptr
@@ -678,7 +746,7 @@ FOR N%=0 TO 2 STEP 2
 		.parse_int
 			STX ptr
 			STY ptr + 1
-			LDA #1 ; operand2
+			LDA #2 ; result
 			JSR zero_operand
 			LDY #0
 		.parse_int_loop
@@ -688,37 +756,72 @@ FOR N%=0 TO 2 STEP 2
 			CMP #58
 			BCS parse_int_done
 			AND #15
-			PHA
-			TYA
-			PHA
-			LDA #0 ; operand1
-			JSR zero_operand
-			LDA #10
-			STA operand1
-			JSR multiply
-			LDA #0 ; operand1
-			JSR zero_operand
-			PLA
-			TAY
-			PLA
-			STA operand1
-			TYA
-			PHA
-			LDX #result MOD 256
-			LDY #result DIV 256
-			LDA #1 ; operand2
-			JSR copy_to_operand
-			JSR add
-			LDX #result MOD 256
-			LDY #result DIV 256
-			LDA #1 ; operand2
-			JSR copy_to_operand
-			PLA
-			TAY
+			CPY #0
+			CLC
+			BEQ add_digit
+			STA temp_number
+			PHP
+			LDX #0
+		.decimal_copy1
+			PLP
+			LDA result, X ; number to shift is in operand2
+			ROL A
+			PHP
+			STA operand1, X ; operand1 = result * 2
+			INX
+			CPX integer_width
+			BNE decimal_copy1
+			LDX #0
+		.decimal_copy2
+			PLP
+			LDA operand1, X
+			ROL A
+			PHP
+			STA result, X ; result = operand1 * 2
+			INX
+			CPX integer_width
+			BNE decimal_copy2
+			LDX #0
+		.decimal_copy3
+			PLP
+			LDA result, X
+			ROL A
+			PHP
+			STA result, X ; result = result * 2
+			INX
+			CPX integer_width
+			BNE decimal_copy3
+			LDX #0
+		.decimal_add1
+			PLP
+			LDA operand1, X
+			ADC result, X
+			PHP
+			STA result, X
+			INX
+			CPX integer_width
+			BNE decimal_add1
+			LDA temp_number
+			PLP
+		.add_digit
+			ADC result
+			PHP
+			STA result
+			LDX #1
+		.decimal_add2
+			PLP
+			LDA #0
+			ADC result, X
+			PHP
+			STA result, X
+			INX
+			CPX integer_width
+			BNE decimal_add2
+			PLP
 			INY
 			BNE parse_int_loop
 		.parse_int_done
-			RTS ; result is in operand2
+			RTS ; result contains parsed integer
 
 		.init
 			JSR set_integer_width
@@ -776,7 +879,7 @@ FOR N%=0 TO 2 STEP 2
 			JSR print_string
 			EQUB 13
 			EQUB 10
-			EQUS "Time elapsed: "
+			EQUS "Time: "
 			EQUB 0
 			LDX #elapsed_time MOD 256
 			LDY #elapsed_time DIV 256
@@ -811,7 +914,7 @@ FOR N%=0 TO 2 STEP 2
 		.run
 			BRK
 			BRK
-			EQUS "Advent of Code 2020 Utility Library. By @TechieKeith"
+			EQUS "Advent of Code 2020 Library by @TechieKeith"
 			BRK
 		.end
 	]
@@ -820,6 +923,16 @@ P.;~P%
 END
 
 DEF PROCtest
+?&410=&20
+!&411=print_string
+$&413="TEST STRING"
+?&41E=13
+?&41F=10
+?&420=0
+?&421=&60
+?&422=&60
+CALL &410
+
 ?integer_width=8
 
 B%=&A5288000

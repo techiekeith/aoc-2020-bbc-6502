@@ -222,17 +222,17 @@ FOR N%=0 TO 2 STEP 2
 			CPX #43 ; '+'
 			BEQ its_a_plus
 			SEC ; negate result
-			LDA operand2
+			LDA result
 			EOR #&FF
 			ADC #0
-			STA operand2
-			LDA operand2 + 1
+			STA result
+			LDA result + 1
 			AND #15
 			EOR #15
 			ADC #0
-			STA operand2 + 1
+			STA result + 1
 		.its_a_plus
-			LDA operand2 + 1
+			LDA result + 1
 			LDX buffer
 			CPX #&61 ; 'a'
 			BNE test_jmp
@@ -245,7 +245,7 @@ FOR N%=0 TO 2 STEP 2
 			LDY #1
 			STA (vm_ptr), Y
 			DEY
-			LDA operand2
+			LDA result
 			STA (vm_ptr), Y
 			CLC
 			LDA #2

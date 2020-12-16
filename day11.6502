@@ -1,0 +1,541 @@
+HIMEM=&4800
+NEW
+AUTO
+REM Operating system variables
+
+OSFIND=&FFCE
+OSGBPB=&FFD1
+OSBPUT=&FFD4
+OSBGET=&FFD7
+OSARGS=&FFDA
+OSFILE=&FFDD
+OSRDCH=&FFE0
+OSASCI=&FFE3
+OSNEWL=&FFE7
+OSWRCH=&FFEE
+OSBYTE=&FFF4
+
+REM Library pointers
+
+lib_start=&7600
+set_integer_width=lib_start
+add=lib_start + 3
+subtract=lib_start + 6
+multiply=lib_start + 9
+divide=lib_start + 12
+print_string=lib_start + 15
+print_decimal=lib_start + 18
+print_hex=lib_start + 21
+print_hex_16bit=lib_start + 24
+print_hex_8bit=lib_start + 27
+copy_from_operand=lib_start + 30
+copy_to_operand=lib_start + 33
+open_file=lib_start + 36
+close_file=lib_start + 39
+read_line=lib_start + 42
+read_record=lib_start + 45
+parse_int=lib_start + 48
+init=lib_start + 51
+print_results=lib_start + 54
+print_string_at_pointer=lib_start + 57
+tick=lib_start + 60
+zero_operand=lib_start + 63
+is_result_zero_or_negative=lib_start + 66
+operand1=lib_start + &70
+dividend=operand1
+operand2=lib_start + &78
+divisor=operand2
+result=lib_start + &80
+quotient=result
+remainder=lib_start + &88
+part1_result=lib_start + &B0
+part2_result=lib_start + &B8
+integer_width=lib_start + &D7
+tick_colour=lib_start + &D8
+
+cells=&4800
+start=&7000
+cell_ptr=&88
+look_cell_ptr=&86
+map_end=&84
+
+day=11 : REM day number (1-25)
+intsize=2 : REM library will use 16-bit integer arithmetic
+
+DAY$=STR$(day)
+IF LEN(DAY$) = 1 DAY$ = "0" + DAY$
+FOR N%=0 TO 2 STEP 2
+	P%=start
+	[
+		OPT N%
+		.lib_osfile_block
+			EQUW lib_filename
+			EQUD lib_start
+			EQUD 0
+			EQUD 0
+			EQUD 0
+
+		.map_osfile_block
+			EQUW map_filename
+		.map_load_address
+			EQUD 0
+			EQUD 0
+		.map_size
+			EQUD 0
+			EQUD 0
+
+		.rows
+			EQUB 0
+		.columns
+			EQUB 0
+		.row_bytes
+			EQUB 0
+		.vacate_seat_trigger
+			EQUB 0
+		.max_look_distance
+			EQUB 0
+		.row
+			EQUB 0
+		.column
+			EQUB 0
+		.dir
+			EQUB 0
+		.moves_left
+			EQUB 0
+		.look_row
+			EQUB 0
+		.look_column
+			EQUB 0
+		.visible_occupied_seats
+			EQUB 0
+		.generation
+			EQUW 0
+		.changed_cells
+			EQUW 0
+		.occupied_seats
+			EQUW 0
+
+		.lib_filename
+			EQUS "L.AOCLIB"
+			EQUB 13
+		.map_filename
+			EQUS "A.DAY11"
+			EQUB 13
+
+		.dx_table
+			EQUB 0
+			EQUB 1
+			EQUB 1
+			EQUB 1
+			EQUB 0
+			EQUB 255
+			EQUB 255
+			EQUB 255
+
+		.dy_table
+			EQUB 255
+			EQUB 255
+			EQUB 0
+			EQUB 1
+			EQUB 1
+			EQUB 1
+			EQUB 0
+			EQUB 255
+
+		.load_library
+			LDA #255
+			LDX #lib_osfile_block MOD 256
+			LDY #lib_osfile_block DIV 256
+			JSR OSFILE
+			LDA #intsize
+			JMP init
+
+		.test
+			LDA #84 ; 'T'
+			STA map_filename
+			JMP skip
+		.run
+			LDA #65 ; 'A'
+			STA map_filename
+		.skip
+			JSR load_library
+			LDA #1
+			STA tick_colour
+			JSR print_string
+			EQUS "Loading data ..."
+			EQUB 0
+
+			JSR tick
+			LDX #cells MOD 256
+			LDY #cells DIV 256
+			STX map_load_address
+			STY map_load_address + 1
+			LDA #255
+			LDX #map_osfile_block MOD 256
+			LDY #map_osfile_block DIV 256
+			JSR OSFILE
+
+			JSR tick
+			CLC
+			LDA map_size
+			STA operand1
+			ADC #cells MOD 256
+			STA map_end
+			LDA map_size + 1
+			STA operand1 + 1
+			ADC #cells DIV 256
+			STA map_end + 1
+			LDA #1 ; operand2
+			JSR zero_operand
+
+			LDY #0
+		.count_columns_loop
+			LDA cells, Y
+			INY
+			CMP #13
+			BNE count_columns_loop
+			DEY
+			STY columns ; var columns = room[0].Length;
+			INY
+			INY
+			STY row_bytes
+			STY operand2
+			JSR divide
+			LDA result
+			STA rows ; var rows = room.Length;
+
+			JSR print_string
+			EQUB 130
+			EQUS "done."
+			EQUB 13
+			EQUB 10
+			EQUB 0
+
+			INC tick_colour
+			JSR do_part_1
+
+			JSR reset_map
+
+			INC tick_colour
+			JSR do_part_2
+
+			JMP print_results
+
+		.do_part_1
+			JSR print_string
+			EQUS "Doing part 1 ..."
+			EQUB 0
+			JSR tick
+			LDA #4
+			STA vacate_seat_trigger
+			LDA #1
+			STA max_look_distance
+			JSR solve
+			LDA occupied_seats
+			STA part1_result
+			LDA occupied_seats + 1
+			STA part1_result + 1
+			JSR print_string
+			EQUB 130
+			EQUS "done!"
+			EQUB 13
+			EQUB 10
+			EQUB 0
+			RTS
+
+		.do_part_2
+			JSR print_string
+			EQUS "Doing part 2 ..."
+			EQUB 0
+			JSR tick
+			LDA #5
+			STA vacate_seat_trigger
+			LDA #255
+			STA max_look_distance
+			JSR solve
+			LDA occupied_seats
+			STA part2_result
+			LDA occupied_seats + 1
+			STA part2_result + 1
+			JSR print_string
+			EQUB 130
+			EQUS "done!"
+			EQUB 13
+			EQUB 10
+			EQUB 0
+			RTS
+		
+		.solve
+			LDA #0
+			STA generation
+			STA generation + 1
+		.generation_loop
+			LDA #0
+			STA changed_cells
+			STA changed_cells + 1
+			STA occupied_seats
+			STA occupied_seats + 1
+			INC generation
+			BNE generate
+			INC generation + 1
+
+		.generate
+			LDX #cells MOD 256
+			LDY #cells DIV 256
+			STX cell_ptr
+			STY cell_ptr + 1
+			LDA #0
+			STA row
+			STA column
+			JSR tick
+
+		.map_scan_loop
+			LDY #0
+			LDA (cell_ptr), Y
+			CMP #46 ; '.'
+			BNE start_looking
+			JMP cell_is_empty
+		
+		.start_looking
+			LDA #0
+			STA visible_occupied_seats
+			STA dir
+		
+		.outer_dir_loop
+			LDA row
+			STA look_row
+			LDA column
+			STA look_column
+			LDA cell_ptr
+			STA look_cell_ptr
+			LDA cell_ptr + 1
+			STA look_cell_ptr + 1
+			LDA max_look_distance
+			STA moves_left
+
+		.dir_loop
+			LDY dir
+			LDA dy_table, Y
+			CLC
+			ADC look_row
+			STA look_row
+			LDA dx_table, Y
+			CLC
+			ADC look_column
+			STA look_column
+
+		.check_edge
+			LDA look_row
+			BMI next_dir
+			CMP rows
+			BCS next_dir
+			LDA look_column
+			BMI next_dir
+			CMP columns
+			BCS next_dir
+
+			JSR move_look_cell_ptr
+			CMP #35 ; '#'
+			BEQ found_occupied_seat
+			CMP #120 ; 'x'
+			BNE look_further
+		.found_occupied_seat
+			INC visible_occupied_seats
+		.look_further
+			DEC moves_left
+			BEQ next_dir
+			CMP #46 ; '.'
+			BEQ dir_loop
+		.next_dir
+			INC dir
+			LDA dir
+			CMP #8
+			BNE outer_dir_loop
+
+			LDX visible_occupied_seats
+			LDY #0
+			LDA (cell_ptr), Y
+			CMP #76 ; 'L'
+			BNE check_vacating_cell
+			CPX #0
+			BNE cell_is_empty
+			LDA #42 ; '*'
+			STA (cell_ptr), Y
+			INC occupied_seats
+			BNE inc_changed_cells
+			INC occupied_seats + 1
+		.inc_changed_cells
+			INC changed_cells
+			BNE cell_is_empty
+			INC changed_cells + 1
+			JMP cell_is_empty
+
+		.check_vacating_cell
+			CMP #35 ; '#'
+			BNE cell_is_empty
+			CPX vacate_seat_trigger
+			BCS vacate_seat
+			INC occupied_seats
+			BNE cell_is_empty
+			INC occupied_seats + 1
+			JMP cell_is_empty
+		.vacate_seat
+			LDA #120 ; 'x'
+			STA (cell_ptr), Y
+			INC changed_cells
+			BNE cell_is_empty
+			INC changed_cells + 1
+
+		.cell_is_empty
+			INC cell_ptr
+			BNE inc_column
+			INC cell_ptr + 1
+		.inc_column
+			INC column
+			LDA column
+			CMP columns
+			BNE next_cell
+			LDA #2
+			CLC
+			ADC cell_ptr
+			STA cell_ptr
+			BNE done_move_cell_ptr
+			INC cell_ptr + 1
+		.done_move_cell_ptr
+			LDA #0
+			STA column
+			INC row
+			LDA row
+			CMP rows
+			BEQ map_scan_done
+		.next_cell
+			JMP map_scan_loop
+
+		.map_scan_done
+			LDX #cells MOD 256
+			LDY #cells DIV 256
+			STX cell_ptr
+			STY cell_ptr + 1
+			LDY #0
+		.pass_2_loop
+			LDA (cell_ptr), Y
+			CMP #42 ; '*'
+			BNE pass_2_check_vacating_cell
+			LDA #35 ; '#'
+			STA (cell_ptr), Y
+			JMP pass_2_next_cell
+		.pass_2_check_vacating_cell
+			CMP #120 ; 'x'
+			BNE pass_2_next_cell
+			LDA #76 ; 'L'
+			STA (cell_ptr), Y
+		.pass_2_next_cell
+			INY
+			BNE check_eof
+			INC cell_ptr + 1
+		.check_eof
+			LDA cell_ptr + 1
+			CMP map_end + 1
+			BNE pass_2_loop
+			CPY map_end
+			BNE pass_2_loop
+
+			LDA changed_cells
+			ORA changed_cells + 1
+		.breakpoint
+			BEQ generate_done
+
+			JMP generation_loop
+		.generate_done
+			RTS
+		
+		.move_look_cell_ptr
+			LDY dir
+			LDA dy_table, Y
+			BEQ look_check_dx
+			BMI subtract_row_bytes
+			CLC
+			LDA look_cell_ptr
+			ADC row_bytes
+			STA look_cell_ptr
+			BCC look_check_dx
+			LDA look_cell_ptr + 1
+			ADC #0
+			STA look_cell_ptr + 1
+			BCC look_check_dx
+		.subtract_row_bytes
+			SEC
+			LDA look_cell_ptr
+			SBC row_bytes
+			STA look_cell_ptr
+			BCS look_check_dx
+			LDA look_cell_ptr + 1
+			SBC #0
+			STA look_cell_ptr + 1
+		.look_check_dx
+			LDA dx_table, Y
+			BEQ look_done
+			BMI subtract_column
+			INC look_cell_ptr
+			BNE look_done
+			INC look_cell_ptr + 1
+			BNE look_done
+		.subtract_column
+			DEC look_cell_ptr
+			LDA #255
+			CMP look_cell_ptr
+			BNE look_done
+			DEC look_cell_ptr + 1
+		.look_done
+			LDY #0
+			LDA (look_cell_ptr), Y
+			RTS
+
+		.reset_map
+			LDX #cells MOD 256
+			LDY #cells DIV 256
+			STX cell_ptr
+			STY cell_ptr + 1
+			LDY #0
+		.reset_loop
+			LDA (cell_ptr), Y
+			CMP #35 ; '#'
+			BNE reset_next_cell
+			LDA #76 ; 'L'
+			STA (cell_ptr), Y
+		.reset_next_cell
+			INY
+			BNE reset_check_eof
+			INC cell_ptr + 1
+		.reset_check_eof
+			LDA cell_ptr + 1
+			CMP map_end + 1
+			BNE reset_loop
+			CPY map_end
+			BNE reset_loop
+			RTS
+
+		.buffer
+
+		.end
+	]
+NEXT
+PRINT;~P%
+END
+
+DEF PROCtest
+CALL test
+ENDPROC
+
+DEF PROCsave
+A%=0
+B%=&41C0000
+C%=start
+D%=run
+E%=start
+F%=end
+X%=10
+Y%=4
+$&41C="DAY" + DAY$
+CALL OSFILE
+ENDPROC

@@ -1,5 +1,7 @@
 # Math library
 
+**This library is deprecated; use aoclib instead**
+
 A simple library for doing unsigned integer arithmetic, for integers between 1 and 8 bytes (8 to 64 bits) wide.
 
 ## Getting started

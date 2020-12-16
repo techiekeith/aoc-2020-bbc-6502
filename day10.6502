@@ -1,0 +1,387 @@
+HIMEM=&6800
+NEW
+AUTO
+REM Operating system variables
+
+OSFIND=&FFCE
+OSGBPB=&FFD1
+OSBPUT=&FFD4
+OSBGET=&FFD7
+OSARGS=&FFDA
+OSFILE=&FFDD
+OSRDCH=&FFE0
+OSASCI=&FFE3
+OSNEWL=&FFE7
+OSWRCH=&FFEE
+
+REM Library pointers
+
+lib_start=&7600
+set_integer_width=lib_start
+add=lib_start + 3
+subtract=lib_start + 6
+multiply=lib_start + 9
+divide=lib_start + 12
+print_string=lib_start + 15
+print_decimal=lib_start + 18
+print_hex=lib_start + 21
+print_hex_16bit=lib_start + 24
+print_hex_8bit=lib_start + 27
+copy_from_operand=lib_start + 30
+copy_to_operand=lib_start + 33
+open_file=lib_start + 36
+close_file=lib_start + 39
+read_line=lib_start + 42
+read_record=lib_start + 45
+parse_int=lib_start + 48
+init=lib_start + 51
+print_results=lib_start + 54
+print_string_at_pointer=lib_start + 57
+tick=lib_start + 60
+zero_operand=lib_start + 63
+is_result_zero_or_negative=lib_start + 66
+operand1=lib_start + &70
+dividend=operand1
+operand2=lib_start + &78
+divisor=operand2
+result=lib_start + &80
+quotient=result
+remainder=lib_start + &88
+part1_result=lib_start + &B0
+part2_result=lib_start + &B8
+integer_width=lib_start + &D7
+tick_colour=lib_start + &D8
+
+start=&7000
+ints=&7400
+temp_ints=&7480
+max=&82
+last=&83
+ones=&84
+threes=&85
+ints_end=&86
+ptr=&88
+chain=&70
+this_chain_permutations=&78
+
+day=10 : REM day number (1-25)
+intsize=1 : REM library will initially use 8-bit integer arithmetic
+
+DAY$=STR$(day)
+IF LEN(DAY$) = 1 DAY$ = "0" + DAY$
+FOR N%=0 TO 2 STEP 2
+	P%=start
+	[
+		OPT N%
+		.lib_filename
+			EQUS "L.AOCLIB"
+			EQUB 13
+		.lib_osfile_block
+			EQUW lib_filename
+			EQUD lib_start
+			EQUD 0
+			EQUD 0
+			EQUD 0
+
+		.load_library
+			LDA #255
+			LDX #lib_osfile_block MOD 256
+			LDY #lib_osfile_block DIV 256
+			JSR OSFILE
+			LDA #intsize
+			JMP init
+
+		.init_ints
+			LDX #ints MOD 256
+			LDY #ints DIV 256
+			STX ints_end
+			STY ints_end + 1
+			RTS
+
+		.test
+			JSR load_library
+			SEC
+			BCS skipload
+		.run
+			JSR load_library
+			CLC
+		.skipload
+			LDA #day
+			JSR open_file
+			LDA #1
+			STA tick_colour
+			JSR print_string
+			EQUS "Loading data ..."
+			EQUB 0
+
+			JSR init_ints
+
+		.read_file
+			JSR tick
+			LDX #buffer MOD 256
+			LDY #buffer DIV 256
+			JSR read_line
+			BCS done
+			JSR parse_line
+			JMP read_file
+
+		.done
+			JSR add_last
+			JSR sort
+			JSR print_string
+			EQUB 130
+			EQUS "done."
+			EQUB 13
+			EQUB 10
+			EQUB 0
+			JSR close_file
+			INC tick_colour
+			JSR do_part_1
+			INC tick_colour
+			JSR do_part_2
+			JMP print_results
+
+		.parse_line
+			JSR tick
+			LDX #buffer MOD 256
+			LDY #buffer DIV 256
+			JSR parse_int
+			LDA result
+			LDY #0
+			STA (ints_end), Y ; inputs are 8-bit numbers
+			INC ints_end ; there are less than 256 of them
+			CMP max
+			BCC done_parsing
+			STA max
+		.done_parsing
+			RTS
+		
+		.add_last
+			LDA max
+			CLC
+			ADC #3
+			STA (ints_end), Y
+			INC ints_end
+			RTS
+		
+		.sort
+			LDX #1
+			LDY #1
+		.sort_loop
+			LDA ints - 1, Y
+			CMP ints, Y
+			BCC no_swap
+			PHA
+			LDA ints, Y
+			STA ints - 1, Y
+			PLA
+			STA ints, Y
+		.no_swap
+			INY
+			CPY ints_end
+			BNE sort_loop
+			LDY #0
+			INX
+			CPX ints_end
+			BNE sort_loop
+			RTS
+
+		.do_part_1
+			JSR print_string
+			EQUS "Doing part 1 ..."
+			EQUB 0
+			JSR tick
+
+			LDX #ints MOD 256
+			LDY #ints DIV 256
+			STX ptr
+			STY ptr + 1
+			LDA #0
+			STA last
+			STA ones
+			STA threes
+			TAY
+
+		.part_1_loop
+			LDA (ptr), Y
+			PHA
+			SEC
+			SBC last
+			CMP #1
+			BNE not_one
+			INC ones
+		.not_one
+			CMP #3
+			BNE not_three
+			INC threes
+		.not_three
+			PLA
+			STA last
+			INY
+			CPY ints_end
+			BNE part_1_loop
+
+			LDA #8
+			JSR set_integer_width ; 64-bit calculations
+
+			LDA #0
+			JSR zero_operand
+			LDA ones
+			STA operand1
+
+			LDA #1
+			JSR zero_operand
+			LDA threes
+			STA operand2
+
+			JSR multiply
+
+			LDA #2
+			LDX #part1_result MOD 256
+			LDY #part1_result DIV 256
+			JSR copy_from_operand
+
+			JSR print_string
+			EQUB 130
+			EQUS "done!"
+			EQUB 13
+			EQUB 10
+			EQUB 0
+			RTS
+
+		.do_part_2
+			JSR print_string
+			EQUS "Doing part 2 ..."
+			EQUB 0
+			JSR tick
+
+			LDX #ints MOD 256
+			LDY #ints DIV 256
+			STX ptr
+			STY ptr + 1
+			LDA #0
+			STA last
+
+			JSR reset_chain ; operand1 contains value 1 on exit
+			LDA #0
+			LDX #part2_result MOD 256
+			LDY #part2_result DIV 256
+			JSR copy_from_operand ; totalPermutations = 1
+			LDA #0
+			TAY
+
+		.part_2_loop
+			TYA
+			PHA
+			LDA (ptr), Y
+			PHA
+
+			SEC
+			SBC last
+			CMP #3 ; if (difference == 1 || difference == 2)
+			BCS break_chain
+
+			LDA #0 ; operand1
+			LDX #this_chain_permutations MOD 256
+			LDY #this_chain_permutations DIV 256
+			JSR copy_to_operand
+			LDA #1 ; operand2
+			LDX #chain MOD 256
+			LDY #chain DIV 256
+			JSR copy_to_operand
+			JSR add ; thisChainPermutations += chain
+			LDA #2 ; result
+			LDX #this_chain_permutations MOD 256
+			LDY #this_chain_permutations DIV 256
+			JSR copy_from_operand
+
+			LDA #0 ; operand1
+			JSR zero_operand
+			LDA #1
+			STA operand1
+			JSR add ; chain++
+			LDA #2 ; result
+			LDX #chain MOD 256
+			LDY #chain DIV 256
+			JSR copy_from_operand
+
+			JMP done_chain ; else
+
+		.break_chain
+			LDA #2 ; result
+			LDX #chain MOD 256
+			LDY #chain DIV 256
+			JSR copy_to_operand
+			JSR is_result_zero_or_negative
+			BEQ done_chain ; if (chain != 0)
+
+			LDA #0 ; operand1
+			LDX #this_chain_permutations MOD 256
+			LDY #this_chain_permutations DIV 256
+			JSR copy_to_operand
+			LDA #1 ; operand2
+			LDX #part2_result MOD 256
+			LDY #part2_result DIV 256
+			JSR copy_to_operand
+			JSR multiply ; totalPermutations *= thisChainPermutations
+			LDA #2 ; result
+			LDX #part2_result MOD 256
+			LDY #part2_result DIV 256
+			JSR copy_from_operand
+
+			JSR reset_chain ; thisChainPermutations = 1; chain = 0
+
+		.done_chain
+			PLA
+			STA last
+			PLA
+			TAY
+			INY
+			CPY ints_end
+			BNE part_2_loop
+
+			JSR print_string
+			EQUB 130
+			EQUS "done!"
+			EQUB 13
+			EQUB 10
+			EQUB 0
+			RTS
+
+		.reset_chain
+			LDA #0
+			JSR zero_operand
+			LDA #0
+			LDX #chain MOD 256
+			LDY #chain DIV 256
+			JSR copy_from_operand ; chain = 0
+			INC operand1
+			LDA #0
+			LDX #this_chain_permutations MOD 256
+			LDY #this_chain_permutations DIV 256
+			JMP copy_from_operand ; thisChainPermutations = 1
+
+		.buffer
+
+		.end
+	]
+NEXT
+PRINT;~P%
+END
+
+DEF PROCtest
+CALL test
+ENDPROC
+
+DEF PROCsave
+A%=0
+B%=&41C0000
+C%=start
+D%=run
+E%=start
+F%=end
+X%=10
+Y%=4
+$&41C="DAY" + DAY$
+CALL OSFILE
+ENDPROC

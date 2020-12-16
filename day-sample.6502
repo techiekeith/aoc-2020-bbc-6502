@@ -55,8 +55,8 @@ tick_colour=lib_start + &D8
 start=&7000
 ptr=&88
 
-day=0 ; day number (1-25)
-intsize=4 ; library will use 32-bit integer arithmetic
+day=0 : REM day number (1-25)
+intsize=4 : REM library will use 32-bit integer arithmetic
 
 DAY$=STR$(day)
 IF LEN(DAY$) = 1 DAY$ = "0" + DAY$

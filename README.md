@@ -13,7 +13,9 @@ Tools used:
 
 * Launch BeebEm
 * In BeebEm menu bar, select `File` **>** `Load Disc 0...`
-* Select the disk image `diskimage.ssd`, then select `Open`
+* Select the relevant disk image, then select `Open`
+    * Days 1-10: `disk1.ssd`
+    * Days 11+: `disk2.ssd`
 
 ### From disk image
 

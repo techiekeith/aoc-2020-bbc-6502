@@ -1,4 +1,4 @@
-HIMEM=&6800
+HIMEM=&6F00
 NEW
 AUTO
 REM Operating system variables
@@ -38,6 +38,8 @@ init=lib_start + 51
 print_results=lib_start + 54
 print_string_at_pointer=lib_start + 57
 tick=lib_start + 60
+zero_operand=lib_start + 63
+is_result_zero_or_negative=lib_start + 66
 operand1=lib_start + &70
 dividend=operand1
 operand2=lib_start + &78
@@ -47,17 +49,17 @@ quotient=result
 remainder=lib_start + &88
 part1_result=lib_start + &B0
 part2_result=lib_start + &B8
+integer_width=lib_start + &D7
 tick_colour=lib_start + &D8
 
-vm=&6800
 start=&7000
-vm_ptr=&86
 ptr=&88
 
-day=0
+day=0 ; day number (1-25)
+intsize=4 ; library will use 32-bit integer arithmetic
+
 DAY$=STR$(day)
 IF LEN(DAY$) = 1 DAY$ = "0" + DAY$
-
 FOR N%=0 TO 2 STEP 2
 	P%=start
 	[
@@ -77,7 +79,7 @@ FOR N%=0 TO 2 STEP 2
 			LDX #lib_osfile_block MOD 256
 			LDY #lib_osfile_block DIV 256
 			JSR OSFILE
-			LDA #4 ; 32-bit integers
+			LDA #intsize
 			JMP init
 
 		.test

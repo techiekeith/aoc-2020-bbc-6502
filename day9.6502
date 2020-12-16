@@ -137,8 +137,6 @@ FOR N%=0 TO 2 STEP 2
 			LDY #buffer DIV 256
 			JSR read_line
 			BCS done
-			LDX #buffer MOD 256
-			LDY #buffer DIV 256
 			JSR parse_line
 			JMP read_file
 

@@ -219,6 +219,8 @@ FOR N%=0 TO 2 STEP 2
 			INC tick_colour
 			JSR do_part_2
 
+			LDA #4 ; set to 32 bits to display timer correctly
+			JSR set_integer_width
 			JMP print_results
 
 		.do_part_1
